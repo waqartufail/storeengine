@@ -10,12 +10,25 @@ static class Catalog
             s.Logo,
             s.Banner,
             s.PromoVideo,
+            s.BannerSlides,
+            languages = s.LocalizationJson.Length == 0
+                ? null
+                : System.Text.Json.JsonSerializer.Deserialize<StoreLanguages>(s.LocalizationJson),
             socialLinks = System.Text.Json.JsonSerializer.Deserialize<SocialLink[]>(
                 s.SocialLinksJson
             ),
             s.Theme,
             s.Slug,
         };
+
+    static string Revision(long settings, IEnumerable<string> rows) =>
+        settings
+        + "."
+        + Convert.ToHexString(
+            System.Security.Cryptography.SHA256.HashData(
+                System.Text.Encoding.UTF8.GetBytes(string.Join(",", rows))
+            )
+        );
 
     public static void Map(RouteGroupBuilder admin, RouteGroupBuilder store)
     {
@@ -51,6 +64,42 @@ static class Catalog
                     || !Rules.Themes.Contains(input.Theme)
                 )
                     return Rules.Bad("Check the store name, title, images and theme.");
+                if (input.BannerSlides != null)
+                {
+                    if (
+                        input.BannerSlides.Length > 8
+                        || input.BannerSlides.Any(x =>
+                            string.IsNullOrWhiteSpace(x) || !Rules.Image(x)
+                        )
+                    )
+                        return Rules.Bad("Choose up to eight valid banner slides.");
+                    s.BannerSlides = input.BannerSlides.Distinct().ToArray();
+                }
+                if (input.Languages is { } languages)
+                {
+                    if (
+                        languages.Packs == null
+                        || languages.Default == null
+                        || !languages.Packs.ContainsKey(languages.Default)
+                        || !languages.Packs.ContainsKey("en")
+                        || languages.Packs.Count > 1000
+                        || languages.Packs.Any(x =>
+                            !System.Text.RegularExpressions.Regex.IsMatch(
+                                x.Key,
+                                @"^[a-zA-Z]{2,8}(-[a-zA-Z0-9]{1,8})*$"
+                            )
+                            || x.Key.Length > 64
+                            || x.Value == null
+                            || x.Value.Any(v =>
+                                !Rules.Text(v.Key, 1100) || !Rules.Optional(v.Value, 16000)
+                            )
+                        )
+                    )
+                        return Rules.Bad(
+                            "Check the language codes, default language and translations."
+                        );
+                    s.LocalizationJson = System.Text.Json.JsonSerializer.Serialize(languages);
+                }
                 if (input.PromoVideo != null && !Rules.Video(input.PromoVideo))
                     return Rules.Bad(
                         "Use a public HTTPS video URL or upload an MP4 or WebM up to 8 MiB."
@@ -106,18 +155,41 @@ static class Catalog
             "/products",
             async (HttpContext ctx, StoreDb db) => await Products(ctx, db).ToListAsync()
         );
+        store
+            .MapGet(
+                "/revision",
+                async (HttpContext ctx, StoreDb db) =>
+                {
+                    var rows = await Products(ctx, db)
+                        .OrderBy(p => p.Id)
+                        .Select(p => new { p.Id, p.Version })
+                        .ToListAsync();
+                    return Results.Json(
+                        Revision(
+                            Access.Shop(ctx).SettingsVersion,
+                            rows.Select(p => p.Id + ":" + p.Version)
+                        )
+                    );
+                }
+            )
+            .WithMetadata(new CatalogRevision());
         store.MapGet(
             "",
             async (HttpContext ctx, StoreDb db) =>
             {
                 var s = Access.Shop(ctx);
                 var config = ShopConfig.Read(s);
+                var products = await Products(ctx, db).ToListAsync();
                 return new
                 {
                     brand = Brand(s),
                     config.Shipping,
                     payments = config.Payments.Where(p => p.Enabled),
-                    products = await Products(ctx, db).ToListAsync(),
+                    products,
+                    revision = Revision(
+                        s.SettingsVersion,
+                        products.OrderBy(p => p.Id).Select(p => p.Id + ":" + p.Version)
+                    ),
                 };
             }
         );
@@ -168,7 +240,15 @@ static class Catalog
             );
         if (
             !Rules.Text(input.Name, 160)
-            || !Rules.Text(input.Category, 100)
+            || (
+                !Rules.Text(input.Category, 1000)
+                || input
+                    .Category.Split(
+                        ',',
+                        StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries
+                    )
+                    .Length == 0
+            )
             || !Rules.Optional(input.Description, 2400)
             || input.Price <= 0
             || !Rules.Money(input.Price)
@@ -190,6 +270,20 @@ static class Catalog
             return Rules.Bad(
                 "Check the product fields and discount. The discount cannot exceed the price or 100%."
             );
+        if (input.NetQuantity is decimal net)
+        {
+            if (
+                net <= 0
+                || net > 10000000
+                || decimal.Round(net, 3) != net
+                || input.NetUnit is not ("g" or "ml")
+            )
+                return Rules.Bad(
+                    "Enter a positive net quantity in grams or millilitres, with up to three decimal places."
+                );
+        }
+        else if (!string.IsNullOrEmpty(input.NetUnit))
+            return Rules.Bad("Enter the net quantity or leave the product size blank.");
         var p =
             id == null
                 ? new Product { ShopId = Access.Shop(ctx).Id }
@@ -199,10 +293,24 @@ static class Catalog
         if (id != null && input.Version != p.Version)
             return Rules.Stale();
         p.Name = input.Name.Trim();
-        p.Category = input.Category.Trim();
+        p.Category = string.Join(
+            ", ",
+            input
+                .Category.Split(
+                    ',',
+                    StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries
+                )
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+        );
         p.Description = input.Description;
         p.Stock = input.Stock;
         p.Price = input.Price;
+        // The empty unit clears the size. Older clients that omit both fields preserve it.
+        if (input.NetUnit != null)
+        {
+            p.NetQuantity = input.NetQuantity;
+            p.NetUnit = input.NetUnit;
+        }
         p.WeightKg = input.WeightKg;
         p.ShippingCharge = input.ShippingCharge;
         p.ImageUrl = input.ImageUrl;
@@ -220,3 +328,5 @@ static class Catalog
         return Results.Ok(p);
     }
 }
+
+sealed class CatalogRevision { }

@@ -1145,3 +1145,124 @@ code {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+.detailPhoto {
+  position: relative;
+  width: 100%;
+  height: auto;
+  aspect-ratio: 4/3;
+  min-width: 0;
+  min-height: 0;
+  box-sizing: border-box;
+  isolation: isolate;
+}
+.detailPhoto img {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  object-position: 50% 50%;
+  margin: 0;
+  padding: 0;
+}
+.catalogTools,
+.bannerControls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+}
+.bannerControls {
+  position: absolute;
+  inset: auto 0 0.65rem;
+  justify-content: center;
+  z-index: 2;
+  direction: ltr;
+}
+.bannerControls button,
+.bannerControls span {
+  border: 0;
+  border-radius: 0.5rem;
+  background: #202421e8;
+  color: white;
+  padding: 0.55rem 0.8rem;
+  font: 600 0.85rem system-ui;
+}
+.socialIcon {
+  display: grid;
+  place-items: center;
+  position: relative;
+  min-width: 40px;
+  min-height: 40px;
+}
+.socialIcon svg {
+  width: 23px;
+  height: 23px;
+  fill: currentColor;
+}
+.socialIcon:is(:focus-visible, :hover)::after {
+  content: attr(title);
+  position: absolute;
+  bottom: 100%;
+  padding: 0.35rem 0.6rem;
+  background: #202421;
+  color: white;
+  border-radius: 0.4rem;
+  font-size: 0.8rem;
+  max-width: min(80vw, 26rem);
+  overflow-wrap: anywhere;
+  z-index: 3;
+}
+.storeLang select,
+.catalogTools select {
+  max-width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 0.45rem;
+  background: var(--surface);
+  color: var(--ink);
+}
+.filters {
+  flex-wrap: wrap;
+}
+.catalogTools {
+  justify-content: space-between;
+}
+.catalogTools .filters {
+  max-width: 100%;
+}
+.languageFields textarea {
+  width: 100%;
+}
+.bannerStage {
+  position: absolute;
+  inset: 0;
+}
+.bannerStage video {
+  height: 100%;
+  width: 100%;
+}
+.bannerStage:has(video) .bannerControls {
+  inset: 0.5rem 0.5rem auto auto;
+}
+
+.storeLang select {
+  width: clamp(5.5rem, 23vw, 10rem);
+}
+.languageFields,
+.languageFields label,
+.languageFields select {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.netSize {
+  display: block;
+  width: fit-content;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.95rem;
+  font-weight: 600;
+}

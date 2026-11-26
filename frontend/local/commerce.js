@@ -66,6 +66,8 @@ export function checkout(s, state, b) {
       unitPrice: p.salePrice,
       listPrice: p.price,
       promoLabel: p.promoLabel,
+      netQuantity: p.netQuantity ?? null,
+      netUnit: p.netUnit || "",
       weightKg: p.weightKg,
       quantity,
     };
@@ -108,8 +110,14 @@ export function publicRoute(state, parts, method, body) {
   const s = state.stores.find((x) => x.slug === slug);
   if (area !== "stores" || !active(s)) fail("This store is unavailable.", 404);
   if (action === "orders" && method === "POST") return checkout(s, state, body);
+  const revision =
+    String(s.version ?? 0) +
+    "." +
+    s.products.map((p) => p.id + ":" + p.version).join(",");
+  if (action === "revision" && method === "GET") return revision;
   if (action || method !== "GET") fail("Page unavailable.", 404);
   return {
+    revision,
     brand: s.brand,
     shipping: s.config.shipping,
     payments: s.config.payments.filter((x) => x.enabled),

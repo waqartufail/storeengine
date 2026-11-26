@@ -9,6 +9,8 @@ export function snapshot(view, revision) {
       "logo",
       "banner",
       "promoVideo",
+      "bannerSlides",
+      "languages",
       "socialLinks",
       "theme",
     ]),
@@ -29,6 +31,8 @@ export function snapshot(view, revision) {
         "stock",
         "price",
         "salePrice",
+        "netQuantity",
+        "netUnit",
         "weightKg",
         "shippingCharge",
         "imageUrl",
@@ -53,14 +57,27 @@ export function fillTemplate(template, data) {
     template.slice(end)
   );
 }
-export async function exportStorefront(view) {
+export async function exportStorefront(view, connection = null) {
   let template = window.NW_LOCAL?.template;
   if (!template) {
     const response = await fetch("/store-template.html");
     if (!response.ok) throw Error("Storefront template could not be loaded.");
     template = await response.text();
   }
-  const output = fillTemplate(template, snapshot(view, crypto.randomUUID()));
+  const output = connection
+    ? fillTemplate(template, {
+        revision: "live",
+        brand: { slug: connection.slug },
+        products: [],
+        payments: [],
+        shipping: {},
+      }).replace('{"apiOrigin":"","slug":""}', () =>
+        JSON.stringify(connection).replace(/</g, "\\u003c"),
+      )
+    : fillTemplate(
+        template,
+        snapshot(view, globalThis.crypto.randomUUID?.() || String(Date.now())),
+      );
   const url = URL.createObjectURL(new Blob([output], { type: "text/html" }));
   const a = document.createElement("a");
   a.href = url;

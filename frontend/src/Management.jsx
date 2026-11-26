@@ -10,6 +10,7 @@ import React, { useEffect, useState } from "react";
 
 import { Header, Message, useAction, api, useTheme, exportJson } from "./ui";
 import { LoginPage } from "./Accounts";
+import PublishStore from "./PublishStore";
 import Promotions from "./Promotions";
 import { exportStorefront } from "./exportStorefront";
 import Products from "./Products";
@@ -25,6 +26,8 @@ const tabs = {
   payments: "Payment Configurations",
   themes: "Themes & Appearance",
   store: "Store",
+  languages: "Languages",
+  publish: "Publish & sync",
 };
 export function Admin({ settings, refresh, logout }) {
   const [tab, setTab] = useState(tabs[currentTab()] ? currentTab() : "orders");
@@ -97,6 +100,12 @@ export function Admin({ settings, refresh, logout }) {
                   a.run(async () =>
                     exportStorefront(
                       await api("/stores/" + settings.brand.slug),
+                      !local && location.protocol === "https:"
+                        ? {
+                            apiOrigin: location.origin,
+                            slug: settings.brand.slug,
+                          }
+                        : null,
                     ),
                   )
                 }
@@ -105,7 +114,9 @@ export function Admin({ settings, refresh, logout }) {
               </button>
             </div>
             <Message text={a.message} />
-            {tab === "products" ? (
+            {tab === "publish" ? (
+              <PublishStore brand={settings.brand} />
+            ) : tab === "products" ? (
               <Products products={products} reload={reloadProducts} />
             ) : tab === "details" ? (
               <ProductConfiguration

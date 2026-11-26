@@ -9,6 +9,7 @@ const template = await readFile(
   new URL("../../github-pages/index.html", import.meta.url),
   "utf8",
 );
+let staticPage = template;
 const api = process.env.TEST_URL;
 const server = createServer((req, res) => {
   if (
@@ -17,7 +18,7 @@ const server = createServer((req, res) => {
     req.url === "/sample-shop/"
   ) {
     res.writeHead(200, { "Content-Type": "text/html;charset=utf-8" });
-    res.end(template);
+    res.end(staticPage);
   } else if (api && req.url.startsWith("/connected/")) {
     res.writeHead(200, { "Content-Type": "text/html;charset=utf-8" });
     res.end(
@@ -91,6 +92,13 @@ try {
     (await ctx.request.get(origin + "/sample-shop/admin.html")).status(),
     404,
   );
+  await p.locator(".product").getByText("400 g", { exact: true }).waitFor();
+  await p
+    .getByRole("link", { name: "View Cold-Pressed Almond Oil details" })
+    .click();
+  await p.locator(".detailGrid").getByText("200 ml", { exact: true }).waitFor();
+  assert.doesNotMatch(await p.locator("body").innerText(), /\bkg\b/i);
+  await p.getByRole("link", { name: /Back to store/ }).click();
   await buy(p, "Wildflower Honey");
   assert.match(await p.locator(".thankYou").innerText(), /965/);
   console.log(
@@ -122,6 +130,41 @@ try {
   assert.equal(await p.locator(".product").count(), 3);
   console.log(
     "PASS merchant export produces a runnable customer-only index.html",
+  );
+  // An already-open phone should see a republished snapshot without losing its cart or interrupting checkout.
+  const visitor = await browser.newContext({
+      viewport: { width: 390, height: 780 },
+    }),
+    mobile = await visitor.newPage();
+  await mobile.goto(origin + "/sample-shop/");
+  await mobile
+    .getByRole("button", { name: "Add Wildflower Honey to bag" })
+    .click();
+  await mobile.getByRole("button", { name: "Bag (1)", exact: true }).click();
+  await mobile.getByRole("button", { name: "Checkout", exact: true }).click();
+  await mobile.getByLabel("Full name").fill("Sample customer");
+  staticPage = template
+    .replace(
+      '"revision":"sample-honey-v3"',
+      '"revision":"sample-honey-republished"',
+    )
+    .replace('"name":"Wildflower Honey"', '"name":"Republished Honey"');
+  assert.notEqual(staticPage, template);
+  await mobile.evaluate(() => window.dispatchEvent(new Event("focus")));
+  assert.equal(
+    await mobile.getByLabel("Full name").inputValue(),
+    "Sample customer",
+  );
+  await mobile.getByRole("button", { name: "Close", exact: true }).click();
+  await mobile.evaluate(() => window.dispatchEvent(new Event("focus")));
+  await mobile
+    .getByRole("heading", { name: "Republished Honey", exact: true })
+    .waitFor({ timeout: 15000 });
+  await mobile.getByRole("button", { name: "Bag (1)", exact: true }).waitFor();
+  staticPage = template;
+  await visitor.close();
+  console.log(
+    "PASS republished static catalog reaches the mobile tab and preserves the bag without interrupting checkout",
   );
   if (api) {
     const session = await browser.newContext();

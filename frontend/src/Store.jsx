@@ -1,7 +1,16 @@
+import NetSize from "./NetSize";
+import {
+  categories,
+  storeCategories,
+  matchesCategory,
+  sortProducts,
+} from "./categories";
+import { defaults, localeName, translator, direction } from "./storeLocale";
+import SocialIcon from "./SocialIcon";
 import StoreBanner from "./StoreBanner";
 import ProductPage, { ProductPhoto } from "./ProductPage";
 import { link, logo, scrollToCatalog } from "./navigation";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import {
   Header,
   Field,
@@ -85,28 +94,90 @@ export default function Store({ slug, productId }) {
     [bag, setBag] = useState(() => readBag(key)),
     [drawer, open] = useState(false),
     [checkout, check] = useState(false);
-  const [category, cat] = useState("All"),
+  const [category, cat] = useState(
+      () => new URL(location.href).searchParams.get("category") || "",
+    ),
+    [sort, setSort] = useState("new"),
+    [chosen, chooseLang] = useState(() => {
+      try {
+        return localStorage.getItem(key + ".language") || "";
+      } catch {
+        return "";
+      }
+    }),
     [search, find] = useState(""),
     [pay, selectPay] = useState(""),
     [receipt, accept] = useState(() => storedReceipt(receiptKey));
   const a = useAction();
   useTheme(data?.brand);
-  async function load() {
+  const cfg = data?.brand.languages || defaults;
+  const lang = Object.hasOwn(cfg.packs, chosen) ? chosen : cfg.default;
+  const t = translator(lang, cfg);
+  const catLabel = (name) => t("category:" + name.toLowerCase(), name);
+  const fmt = (n) =>
+    lang === "en"
+      ? money(n)
+      : new Intl.NumberFormat(lang, {
+          style: "currency",
+          currency: "PKR",
+          maximumFractionDigits: 2,
+        }).format(n);
+  useEffect(() => {
+    document.documentElement.lang = lang;
+    document.documentElement.dir = direction(lang);
+    return () => {
+      document.documentElement.lang = "en";
+      document.documentElement.dir = "ltr";
+    };
+  }, [lang]);
+  function setLanguage(value) {
+    chooseLang(value);
     try {
-      set(await api(path));
+      localStorage.setItem(key + ".language", value);
+    } catch {}
+  }
+  const version = useRef(null),
+    seq = useRef(0),
+    pending = useRef(false);
+  async function load(checkOnly = false) {
+    if (checkOnly && pending.current) return;
+    pending.current = true;
+    const id = ++seq.current;
+    try {
+      if (checkOnly && version.current !== null) {
+        const revision = await api(path + "/revision");
+        if (id !== seq.current || revision === version.current) return;
+      }
+      const fresh = await api(path);
+      if (id !== seq.current) return;
+      version.current = fresh.revision ?? null;
+      set(fresh);
       fail("");
     } catch (e) {
-      set(null);
-      fail(e.message);
+      if (id === seq.current) {
+        version.current = null;
+        set(null);
+        fail(e.message);
+      }
+    } finally {
+      if (id === seq.current) pending.current = false;
     }
   }
   useEffect(() => {
     load();
-    const t = setInterval(load, 30000);
-    window.addEventListener("focus", load);
+    const update = () => {
+      if (!document.hidden) load(true);
+    };
+    const timer = setInterval(update, 8000);
+    document.addEventListener("visibilitychange", update);
+    window.addEventListener("pageshow", update);
+    window.addEventListener("focus", update);
     return () => {
-      clearInterval(t);
-      window.removeEventListener("focus", load);
+      seq.current++;
+      clearInterval(timer);
+      document.removeEventListener("visibilitychange", update);
+      window.removeEventListener("pageshow", update);
+      window.removeEventListener("focus", update);
     };
   }, [slug]);
   useEffect(() => {
@@ -136,24 +207,29 @@ export default function Store({ slug, productId }) {
         <Header brand={data?.brand} />
         <main className="wrap">
           <section className="panel thankYou">
-            <span className="eyebrow">ORDER CONFIRMATION</span>
-            <h1>Thank you for your order!</h1>
-            <p>Your order has been placed.</p>
+            <span className="eyebrow">{t("ORDER CONFIRMATION")}</span>
+            <h1>{t("Thank you for your order!")}</h1>
+            <p>{t("Your order has been placed.")}</p>
             <p className="orderNumber">
-              Order number <strong>#{receipt.id}</strong>
+              {t("Order number")}
+              <strong>#{receipt.id}</strong>
             </p>
             <div className="totals">
               <p>
-                Subtotal <b>{money(receipt.subtotal)}</b>
+                {t("Subtotal")}
+                <b>{fmt(receipt.subtotal)}</b>
               </p>
               <p>
-                Shipping <b>{money(receipt.shipping)}</b>
+                {t("Shipping")}
+                <b>{fmt(receipt.shipping)}</b>
               </p>
               <p>
-                Total <b>{money(receipt.total)}</b>
+                {t("Total")}
+                <b>{fmt(receipt.total)}</b>
               </p>
               <p>
-                Payment method <b>{receipt.paymentMethod}</b>
+                {t("Payment method")}
+                <b>{receipt.paymentMethod}</b>
               </p>
             </div>
             <button
@@ -166,7 +242,7 @@ export default function Store({ slug, productId }) {
                 accept(null);
               }}
             >
-              Continue shopping
+              {t("Continue shopping")}
             </button>
           </section>
         </main>
@@ -177,12 +253,33 @@ export default function Store({ slug, productId }) {
       <>
         <Header />
         <main className="wrap">
-          <h1>{failure || "Loading store…"}</h1>
-          <a href={link("/store")}>Store directory</a>
+          <h1>{failure || t("Loading store…")}</h1>
+          <a href={link("/store")}>{t("Store directory")}</a>
         </main>
       </>
     );
-  const { products, brand, shipping, payments } = data;
+  const { brand, shipping, payments } = data;
+  const products = data.products.map((p) => ({
+    ...p,
+    ...Object.fromEntries(
+      ["name", "description", "details", "promoLabel"].map((k) => [
+        k,
+        t("p:" + p.id + ":" + k, p[k] || ""),
+      ]),
+    ),
+  }));
+  const choices = storeCategories(products);
+  function categoryUrl(c) {
+    const u = new URL(link("/store/" + slug), location.href);
+    if (c) u.searchParams.set("category", c);
+    else u.searchParams.delete("category");
+    return u.href;
+  }
+  function pickCategory(c) {
+    cat(c);
+    history.replaceState(history.state, "", categoryUrl(c));
+  }
+
   const items = Object.entries(bag.items).map(([id, qty]) => ({
     id: Number(id),
     qty,
@@ -209,10 +306,13 @@ export default function Store({ slug, productId }) {
     : 0;
   const total = (subCents + shipCents) / 100,
     method = payments.find((x) => x.name === pay) || payments[0];
-  const filtered = products.filter(
-    (p) =>
-      (category === "All" || p.category === category) &&
-      p.name.toLowerCase().includes(search.toLowerCase()),
+  const filtered = sortProducts(
+    products.filter(
+      (p) =>
+        matchesCategory(p.category, category) &&
+        p.name.toLowerCase().includes(search.toLowerCase()),
+    ),
+    sort,
   );
   async function place(e) {
     e.preventDefault();
@@ -255,9 +355,24 @@ export default function Store({ slug, productId }) {
           href={productId ? link("/store/" + slug) : "#catalog"}
           onClick={productId ? undefined : scrollToCatalog}
         >
-          Shop
+          {t("Shop")}
         </a>
-        <button onClick={() => open(true)}>Bag ({count})</button>
+        <label className="storeLang">
+          <select
+            aria-label={t("Language")}
+            value={lang}
+            onChange={(e) => setLanguage(e.target.value)}
+          >
+            {Object.keys(cfg.packs).map((c) => (
+              <option key={c} value={c} lang={c}>
+                {localeName(c)}
+              </option>
+            ))}
+          </select>
+        </label>
+        <button onClick={() => open(true)}>
+          {t("Bag")} ({count})
+        </button>
       </Header>
       {productId ? (
         <ProductPage
@@ -266,6 +381,9 @@ export default function Store({ slug, productId }) {
           brand={brand}
           slug={slug}
           products={products}
+          t={t}
+          fmt={fmt}
+          catLabel={catLabel}
           historyKey={key + ".views"}
           bag={bag.items}
           quantity={bag.items[productId] || 0}
@@ -277,46 +395,69 @@ export default function Store({ slug, productId }) {
             <div className="heroText">
               <div className="eyebrow">{brand.name}</div>
               <h1>
-                Good things.
+                {t("Good things.")}
                 <br />
-                <em>Better living.</em>
+                <em>{t("Better living.")}</em>
               </h1>
               <p>
-                Discover useful, well-designed essentials for your everyday
-                life.
+                {t(
+                  "Discover useful, well-designed essentials for your everyday life.",
+                )}
               </p>
               <a className="cta" href="#catalog" onClick={scrollToCatalog}>
-                Explore collection →
+                {t("Explore collection")} →
               </a>
             </div>
             <div className="heroImg">
-              <StoreBanner brand={brand} />
+              <StoreBanner brand={brand} t={t} />
             </div>
           </section>
           <main className="wrap" id="catalog">
             <div className="head">
               <div>
-                <div className="eyebrow">THE COLLECTION</div>
-                <h2>Shop essentials</h2>
+                <div className="eyebrow">{t("THE COLLECTION")}</div>
+                <h2>{t("Shop essentials")}</h2>
               </div>
               <input
                 className="search"
-                aria-label="Search products"
-                placeholder="Search products..."
+                aria-label={t("Search products")}
+                placeholder={t("Search products") + "..."}
                 value={search}
                 onChange={(e) => find(e.target.value)}
               />
             </div>
-            <div className="filters">
-              {["All", ...new Set(products.map((p) => p.category))].map((c) => (
-                <button
-                  className={category === c ? "on" : ""}
-                  key={c}
-                  onClick={() => cat(c)}
+            <div className="catalogTools">
+              <div className="filters">
+                {["", ...choices].map((c) => (
+                  <button
+                    aria-pressed={category === c}
+                    key={c}
+                    className={category === c ? "on" : ""}
+                    onClick={() => pickCategory(c)}
+                  >
+                    {c ? catLabel(c) : t("All")}
+                  </button>
+                ))}
+              </div>
+              <label>
+                {t("Sort by")}{" "}
+                <select
+                  aria-label={t("Sort by")}
+                  value={sort}
+                  onChange={(e) => setSort(e.target.value)}
                 >
-                  {c}
-                </button>
-              ))}
+                  {[
+                    ["new", "Newest to oldest"],
+                    ["old", "Oldest to newest"],
+                    ["price-low", "Price low to high"],
+                    ["price-high", "Price high to low"],
+                  ].map(([value, label]) => (
+                    <option key={value} value={value}>
+                      {t(label)}
+                    </option>
+                  ))}
+                </select>
+              </label>
             </div>
             <div className="grid">
               {filtered.map((p) => (
@@ -341,9 +482,13 @@ export default function Store({ slug, productId }) {
                   </a>
                   <div className="info">
                     <div className="meta">
-                      <span>{p.category}</span>
                       <span>
-                        {p.stock ? p.stock + " available" : "Out of stock"}
+                        {categories(p.category).map(catLabel).join(", ")}
+                      </span>
+                      <span>
+                        {p.stock
+                          ? p.stock + " " + t("available")
+                          : t("Out of stock")}
                       </span>
                     </div>
                     <h3>
@@ -351,14 +496,15 @@ export default function Store({ slug, productId }) {
                         {p.name}
                       </a>
                     </h3>
+                    <NetSize product={p} />
                     <p>{p.description}</p>
                     {p.promoLabel && (
                       <p>
                         <span className="statusPill">{p.promoLabel}</span>{" "}
-                        <del>{money(p.price)}</del>
+                        <del>{fmt(p.price)}</del>
                       </p>
                     )}
-                    <strong>{money(p.salePrice)}</strong>
+                    <strong>{fmt(p.salePrice)}</strong>
                     <button
                       className="add"
                       aria-label={"Add " + p.name + " to bag"}
@@ -371,25 +517,46 @@ export default function Store({ slug, productId }) {
                 </article>
               ))}
             </div>
-            {!filtered.length && <p className="muted">No products found.</p>}
+            {!filtered.length && (
+              <p className="muted">{t("No products found.")}</p>
+            )}
           </main>
         </>
       )}
       <footer className="foot">
         <b>{brand.name}</b>
+        {choices.length > 0 && (
+          <nav aria-label={t("Categories")}>
+            {choices.map((c) => (
+              <a
+                key={c}
+                href={categoryUrl(c)}
+                onClick={(e) => {
+                  if (
+                    productId ||
+                    e.ctrlKey ||
+                    e.metaKey ||
+                    e.shiftKey ||
+                    e.altKey
+                  )
+                    return;
+                  e.preventDefault();
+                  find("");
+                  pickCategory(c);
+                  document.getElementById("catalog")?.scrollIntoView();
+                }}
+              >
+                {catLabel(c)}
+              </a>
+            ))}
+          </nav>
+        )}
         {!!brand.socialLinks?.length && (
-          <nav aria-label="Social media">
+          <nav aria-label={t("Social media")}>
             {brand.socialLinks
               .filter((x) => /^https:\/\//i.test(x.url))
               .map((x, i) => (
-                <a
-                  key={i}
-                  href={x.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                >
-                  {x.label}
-                </a>
+                <SocialIcon key={i} item={x} />
               ))}
           </nav>
         )}
@@ -403,60 +570,65 @@ export default function Store({ slug, productId }) {
             onClick={(e) => e.stopPropagation()}
           >
             <div className="drawerHead">
-              <h2>Your bag ({count})</h2>
+              <h2>
+                {t("Your bag")} ({count})
+              </h2>
               <button className="secondary" onClick={() => open(false)}>
-                Close
+                {t("Close")}
               </button>
             </div>
             {items.map(({ id, p, qty }) => (
               <div className="cartItem" key={id}>
                 <div>
-                  <b>{p?.name || "Unavailable product"}</b>
-                  <small>{p ? money(p.salePrice) + " each" : ""}</small>
+                  <b>{p?.name || t("Unavailable product")}</b>
+                  <NetSize product={p} />
+                  <small>{p ? fmt(p.salePrice) + " " + t("each") : ""}</small>
                   {p?.promoLabel && (
                     <small>
-                      {p.promoLabel} · Save{" "}
-                      {money((p.price - p.salePrice) * qty)}
+                      {p.promoLabel} · {t("Save")}{" "}
+                      {fmt((p.price - p.salePrice) * qty)}
                     </small>
                   )}
                   <div className="qty">
                     <button
-                      aria-label="Decrease quantity"
+                      aria-label={t("Decrease quantity")}
                       onClick={() => change(id, qty - 1)}
                     >
                       −
                     </button>
                     {qty}
                     <button
-                      aria-label="Increase quantity"
+                      aria-label={t("Increase quantity")}
                       disabled={!p || qty >= p.stock}
                       onClick={() => change(id, qty + 1)}
                     >
                       +
                     </button>
                     <button className="remove" onClick={() => change(id, 0)}>
-                      Remove
+                      {t("Remove")}
                     </button>
                   </div>
                 </div>
-                <b>{money((p?.salePrice || 0) * qty)}</b>
+                <b>{fmt((p?.salePrice || 0) * qty)}</b>
               </div>
             ))}
-            {!count && <p>Your bag is empty.</p>}
+            {!count && <p>{t("Your bag is empty.")}</p>}
             <div className="totals">
               <p>
-                Subtotal <b>{money(subCents / 100)}</b>
+                {t("Subtotal")}
+                <b>{fmt(subCents / 100)}</b>
               </p>
               <p>
-                Shipping · {grams / 1000} kg <b>{money(shipCents / 100)}</b>
+                {t("Shipping")} <b>{fmt(shipCents / 100)}</b>
               </p>
               <p>
-                Total <b>{money(total)}</b>
+                {t("Total")}
+                <b>{fmt(total)}</b>
               </p>
             </div>
             {invalid && (
               <p role="alert">
-                Stock changed. Adjust the quantities in your bag.
+                {t("Stock changed. Adjust the quantities in your bag.")}
               </p>
             )}
             {!checkout && (
@@ -465,16 +637,17 @@ export default function Store({ slug, productId }) {
                 disabled={!count || invalid}
                 onClick={() => check(true)}
               >
-                Checkout
+                {t("Checkout")}
               </button>
             )}
             {checkout && (
               <form className="form" onSubmit={place}>
-                <h3>Delivery details</h3>
+                <h3>{t("Delivery details")}</h3>
                 {window.NW_LOCAL?.simulated && (
                   <p className="muted">
-                    Test checkout. Use sample details. This order is saved in
-                    this browser.
+                    {t(
+                      "Test checkout. Use sample details. This order is saved in this browser.",
+                    )}
                   </p>
                 )}
                 {[
@@ -483,10 +656,10 @@ export default function Store({ slug, productId }) {
                   ["city", "Delivery city"],
                   ["address", "Delivery address"],
                 ].map(([k, l]) => (
-                  <Field key={k} label={l} name={k} required />
+                  <Field key={k} label={t(l)} name={k} required />
                 ))}
                 <Select
-                  label="Payment method"
+                  label={t("Payment method")}
                   values={payments.map((x) => x.name)}
                   value={method?.name || ""}
                   onChange={(e) => selectPay(e.target.value)}
@@ -497,13 +670,13 @@ export default function Store({ slug, productId }) {
                     {method.qr && <img src={method.qr} alt="Payment QR code" />}
                     {method.kind === "card" && (
                       <a target="_blank" rel="noreferrer" href={method.url}>
-                        Pay on the provider’s secure page ↗
+                        {t("Pay on the provider’s secure page")} ↗
                       </a>
                     )}
                     {method.kind !== "cod" && (
                       <Field
                         key={method.name}
-                        label="Payment reference"
+                        label={t("Payment reference")}
                         name="paymentReference"
                         required
                       />
@@ -514,7 +687,7 @@ export default function Store({ slug, productId }) {
                   className="cta"
                   disabled={a.busy || !count || invalid || !method}
                 >
-                  {a.busy ? "Placing order…" : "Place order"}
+                  {t(a.busy ? "Placing order…" : "Place order")}
                 </button>
                 <Message text={a.message} />
               </form>

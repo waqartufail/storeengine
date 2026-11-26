@@ -25,8 +25,16 @@ builder.Services.AddDbContext<StoreDb>(o =>
 );
 var pagesOrigin = cfg["Pages:Origin"]?.TrimEnd('/');
 if (!string.IsNullOrWhiteSpace(pagesOrigin))
-    builder.Services.AddCors(options => options.AddPolicy("StorefrontPages", policy =>
-        policy.WithOrigins(pagesOrigin).WithMethods("GET", "POST").WithHeaders("Content-Type", "X-NW-Request")));
+    builder.Services.AddCors(options =>
+        options.AddPolicy(
+            "StorefrontPages",
+            policy =>
+                policy
+                    .WithOrigins(pagesOrigin)
+                    .WithMethods("GET", "POST")
+                    .WithHeaders("Content-Type", "X-NW-Request")
+        )
+    );
 var auth = builder.Services.AddAuthentication();
 foreach (var role in new[] { "admin", "owner" })
     auth.AddCookie(
@@ -77,8 +85,10 @@ using (var scope = app.Services.CreateScope())
     );
 }
 if (!string.IsNullOrWhiteSpace(pagesOrigin))
-    app.UseWhen(ctx => ctx.Request.Path.StartsWithSegments("/api/stores"),
-        branch => branch.UseCors("StorefrontPages"));
+    app.UseWhen(
+        ctx => ctx.Request.Path.StartsWithSegments("/api/stores"),
+        branch => branch.UseCors("StorefrontPages")
+    );
 app.UseRateLimiter();
 app.Use(
     async (ctx, next) =>
@@ -307,13 +317,23 @@ static class Access
         else
         {
             var slug = ctx.Request.RouteValues["slug"]?.ToString();
+            var publicShop = db.Shops.AsNoTracking().Where(s => s.Slug == slug);
+            // Revision checks need access state and version, without loading banner and gallery data.
+            if (ctx.GetEndpoint()?.Metadata.GetMetadata<CatalogRevision>() != null)
+                publicShop = publicShop.Select(s => new Shop
+                {
+                    Id = s.Id,
+                    Status = s.Status,
+                    ExpiresAt = s.ExpiresAt,
+                    SettingsVersion = s.SettingsVersion,
+                });
             shop = write
                 ? await db
                     .Shops.FromSqlInterpolated(
                         $"SELECT * FROM \"Shops\" WHERE \"Slug\"={slug} FOR UPDATE"
                     )
                     .SingleOrDefaultAsync()
-                : await db.Shops.AsNoTracking().SingleOrDefaultAsync(s => s.Slug == slug);
+                : await publicShop.SingleOrDefaultAsync();
             if (shop == null || !shop.Available)
                 return Results.NotFound(new { message = "This store is unavailable." });
         }

@@ -5,7 +5,10 @@ import { join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { createHash } from "node:crypto";
 import { chromium } from "playwright-core";
-const browser = await chromium.launch({ args: ["--no-sandbox"] });
+const browser = await chromium.launch({
+  executablePath: process.env.CHROMIUM_PATH || undefined,
+  args: ["--no-sandbox"],
+});
 try {
   const ctx = await browser.newContext(),
     p = await ctx.newPage();
@@ -313,7 +316,12 @@ try {
   await saveBrand();
   await store.goto(new URL(href, p.url()).href);
   await store.locator(".heroImg img").waitFor();
-  assert.equal(await store.locator("footer a, .heroImg video").count(), 0);
+  assert.equal(
+    await store
+      .locator('footer nav[aria-label="Social media"] a, .heroImg video')
+      .count(),
+    0,
+  );
   console.log(
     "PASS removing a banner clip restores its image, and removing a social link clears it from the footer",
   );

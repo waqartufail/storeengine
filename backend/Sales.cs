@@ -188,6 +188,8 @@ static class Sales
                     UnitPrice = p.SalePrice,
                     ListPrice = p.Price,
                     PromoLabel = p.PromoLabel,
+                    NetQuantity = p.NetQuantity,
+                    NetUnit = p.NetUnit,
                     WeightKg = p.WeightKg,
                     Quantity = item.Quantity,
                 }

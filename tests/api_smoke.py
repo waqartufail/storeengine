@@ -52,9 +52,10 @@ assert fake_token not in json.dumps(call(b,"/admin/settings"))
 assert fake_token not in json.dumps(call(public,ub))
 print("PASS PostEx token is write-only, scoped to the signed-in merchant and excluded from storefront data")
 baseProduct=dict(name="Honey",category="Pantry",description="",price=100,stock=12,weightKg=2.5,shippingCharge=85,imageUrl="",promoLabel="10% off",promoKind="Percent",promoValue=10,version=0)
-p=call(a,"/admin/products","POST",baseProduct)
+p=call(a,"/admin/products","POST",dict(baseProduct,netQuantity=150,netUnit="g"))
 assert p["salePrice"]==90
 p=call(a,"/admin/products/"+str(p["id"]),"PUT",dict(baseProduct,version=p["version"],name="Wild honey"))
+assert (p["netQuantity"],p["netUnit"])==(150,"g")  # Older editors omit the two fields.
 call(a,"/admin/products/"+str(p["id"]),"PUT",baseProduct,409)
 call(b,"/admin/products/"+str(p["id"]),"PUT",baseProduct,404)
 call(b,"/admin/products/"+str(p["id"])+"?version=2","DELETE",want=404)
@@ -122,6 +123,27 @@ def buy_one(_):
 with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
     assert sorted(pool.map(buy_one,range(2)))==["ok","sold out"]
 print("PASS fractional excess weight, mixed-product single shipping fee, payment reconciliation and concurrent last-item purchase")
+# The same shipping band applies to different labeled contents. Packaging alone crosses the threshold.
+size=call(a,"/admin/products","POST",dict(baseProduct,name="Oil",netQuantity=250,netUnit="ml",weightKg=5))
+size_path="/admin/products/"+str(size["id"])
+def purchase_size(total):
+    return call(public,ua+"/orders","POST",checkout([(size["id"],1)],total))
+def change_size(**fields):
+    current=next(x for x in call(a,"/admin/products") if x["id"]==size["id"])
+    return call(a,size_path,"PUT",dict(current,**fields))
+first=purchase_size(175)
+assert first["shipping"]==85
+change_size(netQuantity=100,netUnit="g")
+assert purchase_size(175)["shipping"]==85
+change_size(weightKg=5.001)
+assert purchase_size(225)["shipping"]==135
+line=call(a,"/admin/orders/"+str(first["id"]))["items"][0]
+assert (line["netQuantity"],line["netUnit"])==(250,"ml")
+cleared=change_size(netQuantity=None,netUnit="")
+assert cleared["netQuantity"] is None and cleared["netUnit"]==""
+for unit,quantity in [("kg",25),("ml",-1),("g",None),("",15),("ml",.0001)]:
+    call(a,size_path,"PUT",dict(cleared,netUnit=unit,netQuantity=quantity),400)
+print("PASS net g/ml, carry-forward on legacy edits, clearing size, and historical snapshot. Changing product contents preserves the fee; changing only parcel weight changes the fee from 85 to 135.")
 for action,plan in [("Deactivate","Trial"),("Activate","Monthly"),("Reject","Monthly"),("Activate","Yearly"),("Activate","Lifetime")]:
     call(owner,da,"PUT",dict(action=action,plan=plan))
     if action=="Activate":

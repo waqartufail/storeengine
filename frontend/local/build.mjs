@@ -52,7 +52,7 @@ const demo = fillTemplate(
       shipping: s.config.shipping,
       products: s.products,
     },
-    "sample-honey-v2",
+    "sample-honey-v3",
   ),
 );
 await mkdir(new URL("github-pages/", root), { recursive: true });

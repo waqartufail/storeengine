@@ -1,3 +1,4 @@
+import { watchPublishedCatalog } from "./publishedUpdates";
 import logo from "../public/natur-wala.png";
 import { createWorkspace } from "./database";
 import { publicRequest } from "./commerce";
@@ -36,7 +37,13 @@ async function connected(path, method = "GET", body) {
     !["localhost", "127.0.0.1"].includes(origin.hostname)
   )
     throw Error("Use an HTTPS API origin.");
-  if (!["/stores/" + slug, "/stores/" + slug + "/orders"].includes(path))
+  if (
+    ![
+      "/stores/" + slug,
+      "/stores/" + slug + "/orders",
+      "/stores/" + slug + "/revision",
+    ].includes(path)
+  )
     throw Error("Store unavailable.");
   const res = await fetch(origin.origin + "/api" + path, {
     method,
@@ -58,8 +65,16 @@ window.NW_LOCAL = {
   request: connection.apiOrigin ? connected : publicRequest(transaction),
   logo,
   slug,
-  scope,
+  scope:
+    "NaturWala.Customer:" +
+    location.pathname.replace(/index\.html$/, "") +
+    ":" +
+    (connection.apiOrigin || "snapshot") +
+    ":" +
+    slug,
   published: true,
   simulated: !connection.apiOrigin,
 };
 require("./store-root.jsx");
+
+if (!connection.apiOrigin) watchPublishedCatalog(catalog.revision);

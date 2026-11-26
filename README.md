@@ -104,7 +104,7 @@ Each activation starts the selected term at the current UTC time. Changing or re
 
 ## Merchant workflow
 
-- **Product Addition.** Click a stock record to load the edit form. Set the unit weight and shipping fee. Filter by name or stock status. Remove hides a product from the catalog while historical order lines keep their original values.
+- **Product Addition.** Click a stock record to load the edit form. Set **Net quantity** and **Product unit** (g or ml) for the pack size shoppers see. Set **Packed shipping weight (kg)** separately to include packaging. Only the packed weight drives weight-based delivery charges. Existing products retain their original shipping weight and show a size after you enter the labeled contents. Filter by name or stock status. Remove hides a product from the catalog while historical order lines keep their original values.
 - **Promotions.** Choose 10% off, 20% off, PKR 100 off, a named custom percentage, or a named fixed amount. One promotion applies per product. The API rounds the discounted unit price to two decimals before multiplying by quantity.
 - **Orders Status.** Combine order number, product, local date range and status filters. Click an order number to open its own detail URL. The screen contains delivery details, price snapshots, payment reference, shipping totals, order status and tracking.
 - **Courier Configuration.** Set the default shipper, enabled services, pickup codes and dispatch notes. PostEx, TCS, Leopards and M&P are included. Add custom couriers as needed. The default at checkout is captured on the order. For manual bookings, enter the verified tracking number on Order Detail.
@@ -156,3 +156,19 @@ For HTTPS hosting, expose the frontend through your TLS reverse proxy and set `C
 ## Verification
 
 See `tests/README.md` for test commands and the verification scope for this release.
+
+## One catalog on desktop and mobile
+
+Use the **hosted Admin** to make shared changes. **Publish & sync** shows its public store URL. Open that same URL on both devices. The store checks its catalog revision every eight seconds while visible and when returning to the page. Changes to products, stock, categories, slides, translations or themes refresh the open store. A new deployment of the application itself may require a page reload.
+
+For a GitHub Pages customer site, go to **Publish & sync**, enter the publicly reachable HTTPS server origin and approved store slug, then download and publish the **connected** index.html. Configure Pages__Origin on the API as described above. Future catalog edits in that hosted Admin reach both devices without re-exporting. On a hosted HTTPS Admin the dashboard’s GitHub download also generates a connected storefront. Use **Download offline catalog snapshot** in Publish & sync for a static copy. A standalone file Admin and a static snapshot are browser-local demos. For a static site with no API, re-export and republish index.html after editing. The open static storefront checks the published revision on focus and every 30 seconds, and waits until checkout is closed before updating. Offline demo edits are not imported into the hosted store.
+
+To test the server on a trusted Wi-Fi network, set WEB_BIND_ADDRESS=0.0.0.0 in .env, recreate the web service, then open http://YOUR-COMPUTER-LAN-IP:5173/admin on desktop and http://YOUR-COMPUTER-LAN-IP:5173/store/STORE-SLUG on the phone. Use the configured WEB_PORT and allow it through your local firewall for the trusted network. On a phone, localhost refers to the phone. Use HTTPS for internet hosting.
+
+## Merchandising and languages
+
+- Enter comma-separated categories in Product Addition, for example Honey, Gifts, Pantry. Each category is selectable above the catalog and linked in the footer. Price sorting uses the discounted price. Newest and oldest use the product creation sequence, including for products created before this release.
+- In Store, set the cover banner and use **Upload banner slides** for up to eight more images. Images rotate every five seconds, with previous, next and pause controls. A configured promotional video plays first, then advances at the end. Reduced-motion preferences disable automatic rotation.
+- Footer social links display service icons, their accessible names and a tooltip with the destination URL. Custom platforms use a link icon.
+- Admin **Languages** offers the national, regional and de facto official language/script entries in Unicode CLDR 49 territory data, and accepts additional valid BCP 47 language tags. Seven storefront interface translations are supplied: English, Urdu, Hindi, Arabic, French, Spanish and Chinese. Enable languages individually or choose **Enable all listed languages**. Enter translations in Admin or download and import a language JSON file. Set the default and save. Product names, summaries, details, promotions and category names can have merchant-provided translations. Customers choose among enabled languages in the header. Text without a translation falls back to its original wording. Admin and Owner tools are in English.
+- Official-language data is derived from Unicode CLDR territoryInfo.json. Selected social logos are from Simple Icons. See licenses/.

@@ -9,6 +9,7 @@ import {
   publicRoute,
 } from "./commerce";
 import { accounts, hash, session, store, transaction } from "./storage";
+import { categories } from "../src/categories";
 import { themes } from "../src/themes";
 function admin(s) {
   const auth = session("admin"),
@@ -55,7 +56,8 @@ function product(s, state, id, b, method, query) {
   }
   if (
     !text(b.name, 160) ||
-    !text(b.category, 100) ||
+    !text(b.category, 1000) ||
+    !categories(b.category).length ||
     !amount(b.price) ||
     b.price <= 0 ||
     !Number.isInteger(b.stock) ||
@@ -73,6 +75,19 @@ function product(s, state, id, b, method, query) {
     (b.promoKind === "Fixed" && b.promoValue > b.price)
   )
     fail("Check the promotion amount.");
+  if (b.netQuantity != null) {
+    if (
+      !Number.isFinite(b.netQuantity) ||
+      b.netQuantity <= 0 ||
+      b.netQuantity > 10000000 ||
+      Number(b.netQuantity.toFixed(3)) !== b.netQuantity ||
+      !["g", "ml"].includes(b.netUnit)
+    )
+      fail(
+        "Enter a positive net quantity in grams or millilitres, with up to three decimal places.",
+      );
+  } else if (b.netUnit)
+    fail("Enter the net quantity or leave the product size blank.");
   const list = cents(b.price);
   const sale =
     b.promoKind === "Percent"
@@ -84,7 +99,13 @@ function product(s, state, id, b, method, query) {
     ...(id ? s.products[index] : {}),
     ...b,
     id: id || state.nextProduct++,
+    netQuantity:
+      b.netUnit != null
+        ? (b.netQuantity ?? null)
+        : (s.products[index]?.netQuantity ?? null),
+    netUnit: b.netUnit ?? s.products[index]?.netUnit ?? "",
     name: b.name.trim(),
+    category: categories(b.category).join(", "),
     salePrice: sale / 100,
     version: id ? s.products[index].version + 1 : 1,
   };
@@ -172,6 +193,8 @@ function route(state, parts, query, method, b) {
         browserTitle: b.browserTitle,
         slug: s.slug,
         banner: b.banner,
+        bannerSlides: b.bannerSlides ?? s.brand.bannerSlides ?? [],
+        languages: b.languages ?? s.brand.languages,
         socialLinks: links,
         promoVideo: video,
         logo: b.logo,

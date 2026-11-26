@@ -1,3 +1,5 @@
+import NetSize from "./NetSize";
+import { categories } from "./categories";
 import { Description } from "./Description";
 import { rememberProduct, suggest } from "./suggestions";
 import React, { useEffect, useState } from "react";
@@ -23,6 +25,9 @@ export default function ProductPage({
   slug,
   products,
   historyKey,
+  t,
+  fmt,
+  catLabel,
   bag,
   quantity,
   add,
@@ -36,8 +41,8 @@ export default function ProductPage({
   if (!p)
     return (
       <main className="wrap">
-        <h1>Product unavailable</h1>
-        <a href={back}>Back to store</a>
+        <h1>{t("Product unavailable")}</h1>
+        <a href={back}>{t("Back to store")}</a>
       </main>
     );
   const suggested = suggest(products, p, recent, bag);
@@ -47,7 +52,7 @@ export default function ProductPage({
   const index = Math.min(selected, Math.max(0, photos.length - 1));
   return (
     <main className="wrap">
-      <a href={back}>← Back to store</a>
+      <a href={back}>← {t("Back to store")}</a>
       <div className="detailGrid">
         <section>
           <div className="detailPhoto">
@@ -61,7 +66,7 @@ export default function ProductPage({
               {photos.map((src, i) => (
                 <button
                   key={src}
-                  aria-label={"View photo " + (i + 1)}
+                  aria-label={t("View photo") + " " + (i + 1)}
                   aria-pressed={index === i}
                   onClick={() => choose(i)}
                 >
@@ -72,26 +77,26 @@ export default function ProductPage({
           )}
         </section>
         <section className="panel">
-          <span className="eyebrow">{p.category}</span>
+          <span className="eyebrow">
+            {categories(p.category).map(catLabel).join(", ")}
+          </span>
           <h1>{p.name}</h1>
+          <NetSize product={p} />
           <p>{p.description}</p>
           {p.promoLabel && (
             <p>
               <span className="statusPill">{p.promoLabel}</span>{" "}
-              <del>{money(p.price)}</del>
+              <del>{fmt(p.price)}</del>
             </p>
           )}
-          <h2>{money(p.salePrice)}</h2>
-          <p>
-            {p.stock ? p.stock + " available" : "Out of stock"} · {p.weightKg}{" "}
-            kg
-          </p>
+          <h2>{fmt(p.salePrice)}</h2>
+          <p>{p.stock ? p.stock + " " + t("available") : t("Out of stock")}</p>
           <button className="cta" disabled={p.stock <= quantity} onClick={add}>
-            Add to bag
+            {t("Add to bag")}
           </button>
           {p.details && (
             <>
-              <h3>Product details</h3>
+              <h3>{t("Product details")}</h3>
               <Description text={p.details} />
             </>
           )}
@@ -99,7 +104,7 @@ export default function ProductPage({
       </div>
       {suggested.length > 0 && (
         <section className="suggestions" aria-label="Suggested products">
-          <h2>You may also like</h2>
+          <h2>{t("You may also like")}</h2>
           <div className="suggestGrid">
             {suggested.map((x) => (
               <a
@@ -118,9 +123,10 @@ export default function ProductPage({
                     alt=""
                   />
                 </span>
-                <small>{x.category}</small>
+                <small>{categories(x.category).map(catLabel).join(", ")}</small>
                 <strong>{x.name}</strong>
-                <span>{money(x.salePrice)}</span>
+                <NetSize product={x} />
+                <span>{fmt(x.salePrice)}</span>
               </a>
             ))}
           </div>

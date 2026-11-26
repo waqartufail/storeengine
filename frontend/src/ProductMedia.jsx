@@ -206,7 +206,7 @@ export function CoverPhoto({ value = "", onChange, onBusy }) {
     </fieldset>
   );
 }
-export function GalleryEditor({ photos, onChange, onBusy }) {
+export function GalleryEditor({ photos, onChange, onBusy, banners = false }) {
   const [url, setUrl] = useState(""),
     [message, say] = useState(""),
     [working, busy] = useState(false);
@@ -237,9 +237,12 @@ export function GalleryEditor({ photos, onChange, onBusy }) {
   }
   return (
     <fieldset disabled={working}>
-      <legend>Gallery photos ({photos.length}/8)</legend>
+      <legend>
+        {banners ? "Banner slider images" : "Gallery photos"} ({photos.length}
+        /8)
+      </legend>
       <Field
-        label="Upload gallery photos"
+        label={banners ? "Upload banner slides" : "Upload gallery photos"}
         type="file"
         multiple
         accept="image/jpeg,image/png,image/webp"
@@ -254,7 +257,7 @@ export function GalleryEditor({ photos, onChange, onBusy }) {
         }}
       />
       <Field
-        label="Gallery image URL"
+        label={banners ? "Banner slide URL" : "Gallery image URL"}
         type="url"
         value={url}
         onChange={(e) => setUrl(e.target.value)}
@@ -272,7 +275,7 @@ export function GalleryEditor({ photos, onChange, onBusy }) {
           })
         }
       >
-        Add URL to gallery
+        {banners ? "Add banner slide URL" : "Add URL to gallery"}
       </button>
       <Message text={working ? "Preparing gallery…" : message} />
       <div className="galleryEdit">

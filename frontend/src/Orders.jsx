@@ -1,3 +1,4 @@
+import NetSize from "./NetSize";
 import { link, local } from "./navigation";
 import React, { useState, useEffect } from "react";
 import {
@@ -185,8 +186,9 @@ export function Detail({ id, settings }) {
               <div className="row" key={i.id}>
                 <div>
                   <b>{i.productName}</b>
+                  <NetSize product={i} />
                   <small>
-                    {i.quantity} × {money(i.unitPrice)} · {i.weightKg} kg each{" "}
+                    {i.quantity} × {money(i.unitPrice)}{" "}
                     {i.promoLabel &&
                       "· " +
                         i.promoLabel +
@@ -203,7 +205,7 @@ export function Detail({ id, settings }) {
                 Subtotal <b>{money(o.subtotal)}</b>
               </p>
               <p>
-                Shipping · {o.weightKg} kg <b>{money(o.shipping)}</b>
+                Shipping <b>{money(o.shipping)}</b>
               </p>
               <p>
                 Total <b>{money(o.total)}</b>

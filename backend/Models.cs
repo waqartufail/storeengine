@@ -22,6 +22,8 @@ class StoreDb(DbContextOptions<StoreDb> options) : DbContext(options)
 
 class Product
 {
+    public decimal? NetQuantity { get; set; }
+    public string NetUnit { get; set; } = "";
     public string Details { get; set; } = "";
     public string[] Gallery { get; set; } = [];
     public int? ShopId { get; set; }
@@ -80,6 +82,8 @@ class Order
 
 class OrderItem
 {
+    public decimal? NetQuantity { get; set; }
+    public string NetUnit { get; set; } = "";
     public decimal ListPrice { get; set; }
     public string PromoLabel { get; set; } = "";
     public decimal WeightKg { get; set; }
@@ -104,6 +108,8 @@ class Shop
     public string BrowserTitle { get; set; } = "";
     public string Logo { get; set; } = "";
     public string Banner { get; set; } = "";
+    public string[] BannerSlides { get; set; } = [];
+    public string LocalizationJson { get; set; } = "";
     public string PromoVideo { get; set; } = "";
     public string SocialLinksJson { get; set; } = "[]";
     public string Theme { get; set; } = "royal";
@@ -180,8 +186,12 @@ record Branding(
     string Theme,
     long Version,
     string? PromoVideo = null,
-    SocialLink[]? SocialLinks = null
+    SocialLink[]? SocialLinks = null,
+    string[]? BannerSlides = null,
+    StoreLanguages? Languages = null
 );
+
+record StoreLanguages(string Default, Dictionary<string, Dictionary<string, string>> Packs);
 
 record SocialLink(string Label, string Url);
 
@@ -201,7 +211,9 @@ record ProductInput(
     decimal PromoValue,
     long Version,
     string? Details = null,
-    string[]? Gallery = null
+    string[]? Gallery = null,
+    decimal? NetQuantity = null,
+    string? NetUnit = null
 );
 
 record OrderLine(int ProductId, int Quantity);

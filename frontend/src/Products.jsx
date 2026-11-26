@@ -1,3 +1,4 @@
+import NetSize from "./NetSize";
 import { CoverPhoto } from "./ProductMedia";
 import { PromotionFields } from "./Promotions";
 import React, { useState } from "react";
@@ -8,6 +9,8 @@ const blank = {
   category: "General",
   price: "",
   stock: 0,
+  netQuantity: "",
+  netUnit: "g",
   weightKg: 0.5,
   shippingCharge: 0,
   imageUrl: "",
@@ -24,7 +27,11 @@ export default function Products({ products, reload }) {
   const [mediaBusy, setMediaBusy] = useState(false);
   function edit(row) {
     setMediaBusy(false);
-    set({ ...row });
+    set({
+      ...row,
+      netQuantity: row.netQuantity ?? "",
+      netUnit: row.netUnit || "g",
+    });
     document
       .querySelector("#product-editor")
       ?.scrollIntoView({ block: "start" });
@@ -43,7 +50,11 @@ export default function Products({ products, reload }) {
     e.preventDefault();
     if (mediaBusy) return;
     await a.run(async () => {
-      const payload = { ...p };
+      const payload = {
+        ...p,
+        netQuantity: p.netQuantity === "" ? null : Number(p.netQuantity),
+        netUnit: p.netQuantity === "" ? "" : p.netUnit,
+      };
       for (const k of [
         "price",
         "stock",
@@ -88,7 +99,12 @@ export default function Products({ products, reload }) {
           <form className="form" onSubmit={save}>
             {field("name", "Product name", { required: true, maxLength: 160 })}
             {field("description", "Description")}
-            {field("category", "Category", { required: true })}
+            {field("category", "Category", {
+              required: true,
+              maxLength: 1000,
+              placeholder: "Honey, Gifts, Pantry",
+            })}
+            <small>Separate categories with commas.</small>
             {field("price", "Price (PKR)", {
               type: "number",
               step: ".01",
@@ -100,12 +116,34 @@ export default function Products({ products, reload }) {
               min: 0,
               required: true,
             })}
-            {field("weightKg", "Product weight (kg)", {
+            <fieldset>
+              <legend>Product size shown to customers</legend>
+              <div className="pair">
+                {field("netQuantity", "Net quantity", {
+                  type: "number",
+                  min: ".001",
+                  max: "10000000",
+                  step: ".001",
+                  placeholder: "e.g. 250",
+                })}
+                <Select
+                  label="Product unit"
+                  values={["g", "ml"]}
+                  value={p.netUnit}
+                  onChange={(e) => set({ ...p, netUnit: e.target.value })}
+                />
+              </div>
+            </fieldset>
+            {field("weightKg", "Packed shipping weight (kg)", {
               type: "number",
               step: ".001",
               min: ".001",
               required: true,
             })}
+            <small>
+              Include the packaging in this weight. Checkout uses it to
+              calculate delivery.
+            </small>
             {field("shippingCharge", "Shipping charge (PKR)", {
               type: "number",
               step: ".01",
@@ -172,14 +210,15 @@ export default function Products({ products, reload }) {
                 }}
               >
                 <b>{x.name}</b>
+                <NetSize product={x} />
                 {x.promoLabel && (
                   <small>
                     {x.promoLabel} · <del>{money(x.price)}</del>
                   </small>
                 )}
                 <small>
-                  {money(x.salePrice)} · Stock {x.stock} · {x.weightKg} kg ·
-                  Shipping {money(x.shippingCharge)}
+                  {money(x.salePrice)} · Stock {x.stock} · Packed {x.weightKg}{" "}
+                  kg · Shipping {money(x.shippingCharge)}
                 </small>
                 <span className="statusPill">
                   {x.stock ? "In Stock" : "Out of Stock"}

@@ -1,3 +1,5 @@
+import { GalleryEditor } from "./ProductMedia";
+import StoreLanguages from "./StoreLanguages";
 import StoreBrandFields from "./StoreBrandFields";
 import PostExToken from "./PostExToken";
 import { link, local } from "./navigation";
@@ -8,6 +10,7 @@ export default function Settings({ tab, settings, reload }) {
   const [brand, setBrand] = useState(settings.brand),
     [cfg, setCfg] = useState(settings.config),
     [custom, rename] = useState("");
+  const [slideBusy, setSlideBusy] = useState(false);
   const [videoBusy, setVideoBusy] = useState(false);
   const a = useAction();
   const patchBrand = (key, value) => setBrand((b) => ({ ...b, [key]: value }));
@@ -20,7 +23,7 @@ export default function Settings({ tab, settings, reload }) {
   }
   async function save(e, type, value) {
     e?.preventDefault();
-    if (videoBusy) return;
+    if (videoBusy || slideBusy) return;
     await a.run(async () => {
       await api(
         "/admin/" + (type === "brand" ? "brand" : "settings"),
@@ -83,17 +86,29 @@ export default function Settings({ tab, settings, reload }) {
               onChange={(v) => patchBrand("banner", v)}
               error={a.setMessage}
             />
+            <GalleryEditor
+              banners
+              photos={brand.bannerSlides || []}
+              onChange={(v) => patchBrand("bannerSlides", v)}
+              onBusy={setSlideBusy}
+            />
             <StoreBrandFields
               brand={brand}
               patch={patchBrand}
               onBusy={setVideoBusy}
             />
             <a href={link("/store/" + brand.slug)}>/store/{brand.slug}</a>
-            <button disabled={a.busy || videoBusy} className="cta">
+            <button disabled={a.busy || videoBusy || slideBusy} className="cta">
               Save branding
             </button>
           </form>
         </section>
+      ) : tab === "languages" ? (
+        <StoreLanguages
+          brand={brand}
+          save={(v) => save(null, "brand", { ...brand, languages: v })}
+          busy={a.busy}
+        />
       ) : tab === "themes" ? (
         <section className="panel">
           <h3>Store &amp; Admin Theme Gallery</h3>

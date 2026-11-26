@@ -127,7 +127,9 @@ try {
     .fill("Botanical tea");
   await editor.getByLabel("Price (PKR)").fill("500");
   await editor.getByLabel("Stock quantity").fill("4");
-  await editor.getByLabel("Product weight (kg)").fill("2.6");
+  await editor.getByLabel("Net quantity").fill("125.5");
+  await editor.getByLabel("Product unit").selectOption("g");
+  await editor.getByLabel("Packed shipping weight (kg)").fill("2.6");
   await editor
     .getByLabel("Promotion", { exact: true })
     .selectOption("Custom percentage");
@@ -214,11 +216,24 @@ try {
     .getAttribute("href");
   await shop.goto(new URL(url, base).href);
   await shop
+    .locator(".product")
+    .getByText("125.5 g", { exact: true })
+    .waitFor();
+  await shop.getByRole("link", { name: "View Organic tea details" }).click();
+  await shop
+    .locator(".detailGrid")
+    .getByText("125.5 g", { exact: true })
+    .waitFor();
+  assert.doesNotMatch(await shop.locator("body").innerText(), /\bkg\b/i);
+  await shop.getByRole("link", { name: /Back to store/ }).click();
+  await shop
     .getByRole("button", { name: "Add Organic tea to bag" })
     .click({ clickCount: 1 });
   await shop.getByRole("button", { name: "Bag (1)", exact: true }).click();
   await shop.getByRole("button", { name: "Increase quantity" }).click();
   await shop.getByRole("button", { name: "Checkout", exact: true }).click();
+  await shop.locator(".drawer").getByText("125.5 g", { exact: true }).waitFor();
+  assert.doesNotMatch(await shop.locator(".drawer").innerText(), /\bkg\b/i);
   await shop.getByLabel("Full name").fill("Test buyer");
   await shop.getByLabel("Phone number").fill("03001234567");
   await shop.getByLabel("Delivery city").fill("Lahore");
@@ -263,6 +278,7 @@ try {
   await admin.getByRole("heading", { name: "Order #" + number }).waitFor();
   if (local) await admin.reload();
   await admin.getByText(/Reference QA-TRANSFER/).waitFor();
+  await admin.getByText("125.5 g", { exact: true }).waitFor();
   await submit(admin, "Mark payment verified", "/verify-payment");
   await admin.getByLabel("Verified courier tracking number").fill("LOCAL-QA");
   await submit(admin, "Save tracking number", "/tracking");

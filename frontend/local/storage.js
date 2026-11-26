@@ -92,10 +92,10 @@ export function seed() {
   s.plan = "Lifetime";
   s.status = "Active";
   s.products = [
-    ["Wildflower Honey", "Pantry", 850, 0.5],
-    ["Mint Green Tea", "Tea", 520, 0.125],
-    ["Cold-Pressed Almond Oil", "Oils", 1250, 0.25],
-  ].map(([name, category, price, weightKg], i) => ({
+    ["Wildflower Honey", "Pantry", 850, 0.5, 400, "g"],
+    ["Mint Green Tea", "Tea", 520, 0.125, 100, "g"],
+    ["Cold-Pressed Almond Oil", "Oils", 1250, 0.25, 200, "ml"],
+  ].map(([name, category, price, weightKg, netQuantity, netUnit], i) => ({
     id: i + 1,
     name,
     category,
@@ -103,6 +103,8 @@ export function seed() {
     price,
     stock: 12,
     weightKg,
+    netQuantity,
+    netUnit,
     shippingCharge: 0,
     imageUrl: "",
     promoKind: i === 0 ? "Percent" : "None",

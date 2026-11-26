@@ -1,4 +1,5 @@
 // History contains only recent catalog IDs from this store and browser tab.
+import { categories } from "./categories.js";
 export function rememberProduct(key, id) {
   try {
     const parsed = JSON.parse(sessionStorage.getItem(key) || "[]");
@@ -29,19 +30,20 @@ export function suggest(products, current, recent, bag) {
   function interest(id, weight) {
     const p = byId.get(id);
     if (!p || p.id === current.id) return;
-    const category = p.category.toLowerCase();
-    weights.set(category, (weights.get(category) || 0) + weight);
+    for (const category of categories(p.category.toLowerCase()))
+      weights.set(category, (weights.get(category) || 0) + weight);
   }
   recent.forEach((id, i) => interest(id, Math.max(1, 8 - i)));
   Object.keys(bag).forEach((id) => interest(Number(id), 8));
   const words = terms(current.name);
   function score(p) {
-    const cat = p.category.toLowerCase();
+    const cats = categories(p.category.toLowerCase());
+    const currentCats = categories(current.category.toLowerCase());
     const overlap = [...terms(p.name)].filter((x) => words.has(x)).length;
     return (
-      (cat === current.category.toLowerCase() ? 16 : 0) +
+      (cats.some((c) => currentCats.includes(c)) ? 16 : 0) +
       overlap * 5 +
-      Math.min(24, weights.get(cat) || 0)
+      Math.min(24, Math.max(0, ...cats.map((c) => weights.get(c) || 0)))
     );
   }
   return products

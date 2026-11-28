@@ -1,6 +1,7 @@
+import pantryCover from "./assets/pantry-cover.webp";
 import React, { useEffect, useState } from "react";
 import { logo } from "./navigation";
-export default function StoreBanner({ brand, t = (x) => x }) {
+export default function StoreBanner({ brand, t }) {
   const slides = [
     ...new Set(
       [brand.promoVideo, brand.banner, ...(brand.bannerSlides || [])].filter(
@@ -9,52 +10,41 @@ export default function StoreBanner({ brand, t = (x) => x }) {
     ),
   ];
   const [index, change] = useState(0),
-    [broken, mark] = useState([]),
-    [paused, pause] = useState(
-      () => window.matchMedia("(prefers-reduced-motion: reduce)").matches,
-    ),
-    [hover, setHover] = useState(false),
-    [focus, setFocus] = useState(false);
-  const visible = slides.filter((src) => !broken.includes(src)),
-    count = visible.length,
-    pos = count ? index % count : 0,
-    src = visible[pos],
-    video = src && src === brand.promoVideo;
-  const move = (d) => change((pos + d + count) % count);
+    [broken, mark] = useState([]);
+  const visible = slides.filter((s) => !broken.includes(s)),
+    count = visible.length;
+  const pos = count ? index % count : 0,
+    src = visible[pos];
+  const seconds = Math.min(
+    30,
+    Math.max(2, Number(brand.homepage?.slideSeconds) || 5),
+  );
   useEffect(() => {
-    if (count < 2 || paused || video || hover || focus) return;
-    const timer = setTimeout(() => change((pos + 1) % count), 5000);
+    if (count < 2) return;
+    const timer = setTimeout(() => change(pos + 1), seconds * 1000);
     return () => clearTimeout(timer);
-  }, [pos, count, paused, video, hover, focus, src]);
-  const fallback = () => mark((old) => [...old, src]);
+  }, [pos, count, seconds, src]);
+  const fail = () => mark((list) => [...list, src]);
   return (
-    <div
-      className="bannerStage"
-      onMouseEnter={() => setHover(true)}
-      onMouseLeave={() => setHover(false)}
-      onFocus={() => setFocus(true)}
-      onBlur={(e) => {
-        if (!e.currentTarget.contains(e.relatedTarget)) setFocus(false);
-      }}
-    >
-      {video ? (
+    <div className="bannerStage">
+      {src && src === brand.promoVideo ? (
         <video
           key={src}
           src={src}
-          controls
+          autoPlay
           muted
           playsInline
-          loop={count === 1}
-          autoPlay={!paused}
-          onEnded={() => {
-            if (!paused && count > 1) move(1);
-          }}
+          loop
+          disablePictureInPicture
+          disableRemotePlayback
           poster={brand.banner || brand.logo || logo}
           aria-label={brand.name + " promotion"}
-          onError={fallback}
+          onError={fail}
         />
       ) : src ? (
-        <img src={src} alt={brand.name + " store banner"} onError={fallback} />
+        <img src={src} onError={fail} alt={brand.name + " store banner"} />
+      ) : brand.slug === "natur-wala" ? (
+        <img src={pantryCover} alt="" />
       ) : (
         <img className="heroLogo" src={brand.logo || logo} alt={brand.name} />
       )}
@@ -63,7 +53,7 @@ export default function StoreBanner({ brand, t = (x) => x }) {
           <button
             type="button"
             aria-label={t("Previous banner")}
-            onClick={() => move(-1)}
+            onClick={() => change((pos - 1 + count) % count)}
           >
             ‹
           </button>
@@ -73,16 +63,9 @@ export default function StoreBanner({ brand, t = (x) => x }) {
           <button
             type="button"
             aria-label={t("Next banner")}
-            onClick={() => move(1)}
+            onClick={() => change(pos + 1)}
           >
             ›
-          </button>
-          <button
-            type="button"
-            aria-label={t(paused ? "Play slideshow" : "Pause slideshow")}
-            onClick={() => pause(!paused)}
-          >
-            {paused ? "▶" : "Ⅱ"}
           </button>
         </div>
       )}

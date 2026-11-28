@@ -1,8 +1,9 @@
+import { GitHubSync } from "./GitHubSync";
 import React, { useState } from "react";
 import { local } from "./navigation";
 import { Field, Message, useAction, api } from "./ui";
 import { exportStorefront } from "./exportStorefront";
-export default function PublishStore({ brand }) {
+export default function PublishStore({ brand, publisher }) {
   const [origin, setOrigin] = useState(local ? "" : location.origin),
     [slug, setSlug] = useState(local ? "" : brand.slug);
   const a = useAction();
@@ -12,12 +13,14 @@ export default function PublishStore({ brand }) {
     if (
       ["https:", "http:"].includes(url.protocol) &&
       !url.username &&
+      !/(^|\.)(github\.com|github\.io)$/.test(url.hostname) &&
       !url.password
     )
       host = url.origin;
   } catch {}
   const valid = host && /^[a-z0-9-]+$/.test(slug);
   const shared = valid ? host + "/store/" + slug : "";
+  if (publisher?.target && local) return <GitHubSync model={publisher} />;
   return (
     <section className="panel form">
       <h2>Publish &amp; sync</h2>
@@ -27,7 +30,7 @@ export default function PublishStore({ brand }) {
           : "This Admin saves to the shared database. Give mobile shoppers the store link below. Changes refresh automatically while their store is open."}
       </p>
       <Field
-        label="Hosted store origin"
+        label="ASP.NET server origin"
         type="url"
         value={origin}
         placeholder="https://shop.example.com"

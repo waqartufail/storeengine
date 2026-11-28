@@ -11,6 +11,7 @@ static class Catalog
             s.Banner,
             s.PromoVideo,
             s.BannerSlides,
+            homepage = System.Text.Json.JsonSerializer.Deserialize<Dictionary<string,string>>(s.HomepageJson),
             languages = s.LocalizationJson.Length == 0
                 ? null
                 : System.Text.Json.JsonSerializer.Deserialize<StoreLanguages>(s.LocalizationJson),
@@ -64,6 +65,12 @@ static class Catalog
                     || !Rules.Themes.Contains(input.Theme)
                 )
                     return Rules.Bad("Check the store name, title, images and theme.");
+                if (input.Homepage is { } homepage)
+                {
+                    if (homepage.Count > 32 || homepage.Any(x => x.Key.Length > 50 || x.Value == null || x.Value.Length > 12000))
+                        return Rules.Bad("Homepage settings exceed the supported size.");
+                    s.HomepageJson = System.Text.Json.JsonSerializer.Serialize(homepage);
+                }
                 if (input.BannerSlides != null)
                 {
                     if (
@@ -141,6 +148,8 @@ static class Catalog
                 var s = Access.Shop(ctx);
                 if (s.SettingsVersion != input.Version)
                     return Rules.Stale();
+                if (input.Config is null) return Rules.Bad("Provide store settings.");
+                input.Config.Newsletter = ShopConfig.Read(s).Newsletter;
                 if (!Rules.Config(input.Config))
                     return Rules.Bad(
                         "Check rates, unique names, image formats and enabled methods. Enable the default courier and supply an HTTPS link for card payments."
@@ -184,6 +193,7 @@ static class Catalog
                 {
                     brand = Brand(s),
                     config.Shipping,
+                    newsletter = config.Newsletter ?? new NewsletterRule(),
                     payments = config.Payments.Where(p => p.Enabled),
                     products,
                     revision = Revision(
@@ -314,6 +324,8 @@ static class Catalog
         p.WeightKg = input.WeightKg;
         p.ShippingCharge = input.ShippingCharge;
         p.ImageUrl = input.ImageUrl;
+        if (input.Disclosures?.Length > 5000) return Rules.Bad("Product disclosures exceed 5,000 characters.");
+        if (input.Disclosures != null) p.Disclosures=input.Disclosures.Trim();
         if (input.Details != null)
             p.Details = input.Details.Trim();
         if (input.Gallery != null)

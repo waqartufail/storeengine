@@ -105,7 +105,10 @@ try {
     category: "Gifts",
     price: 120,
   });
-  await admin.getByRole("button", { name: "Store", exact: true }).click();
+  await admin.getByRole("button", { name: "Hero banner", exact: true }).click();
+  await admin
+    .getByLabel("Main heading", { exact: true })
+    .fill("Field to table");
   await admin.getByLabel("Upload banner slides").setInputFiles(
     images.map((s, i) => ({
       name: i + ".png",
@@ -114,12 +117,15 @@ try {
     })),
   );
   await admin.getByAltText("Gallery photo 2", { exact: true }).waitFor();
+  await admin.getByRole("button", { name: "Save section" }).click();
+  await admin.getByText("Settings saved.", { exact: true }).waitFor();
+  await admin.getByRole("button", { name: "Footer", exact: true }).click();
   await admin.getByRole("button", { name: "Add social link" }).click();
   await admin.getByLabel("Platform name 1").fill("Instagram");
   await admin
     .getByLabel("Profile URL 1")
     .fill("https://www.instagram.com/example.shop/");
-  await admin.getByRole("button", { name: "Save branding" }).click();
+  await admin.getByRole("button", { name: "Save section" }).click();
   await admin.getByText("Settings saved.", { exact: true }).waitFor();
   await admin.getByRole("button", { name: "Languages", exact: true }).click();
   await admin
@@ -152,6 +158,7 @@ try {
   });
   await new Promise((resolve) => server.listen(5197, "127.0.0.1", resolve));
   await mobile.goto("http://127.0.0.1:5197/demo/index.html");
+  await mobile.getByRole("heading", { name: /Field to table/ }).waitFor();
   const cardNames = () => mobile.locator(".product h3").allInnerTexts();
   await mobile.getByRole("heading", { name: "Third", exact: true }).waitFor();
   assert.deepEqual(await cardNames(), ["Third", "Second", "Portrait"]);

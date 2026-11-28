@@ -9,14 +9,9 @@ const subscribe = (fn) => {
   return () => window.removeEventListener("hashchange", fn);
 };
 function App() {
-  const path = React.useSyncExternalStore(subscribe, currentPath);
-  const key =
-    __NW_ROLE__ === "admin" && /^\/admin\/orders\/\d+$/.test(path)
-      ? path
-      : __NW_ROLE__;
+  React.useSyncExternalStore(subscribe, currentPath);
   return (
     <AccountPortal
-      key={key}
       role={__NW_ROLE__}
       Dashboard={__NW_ROLE__ === "owner" ? Owner : Admin}
     />

@@ -52,3 +52,23 @@ Run the same media suite against the direct-open portals by setting TEST_LOCAL_F
 With TEST_URL, the QA owner variables and Pages__Origin configured as above, run `node frontend/tests/mobileStore.mjs`. It downloads the actual connected Pages export, serves it at a separate origin and observes a desktop edit from a different mobile browser context without reloading. It checks category navigation from the detail page, reload, discounted-price and creation-order sorting, uploaded slides, social icon URLs and localized UI. Image frame and viewport bounds are checked using both tall and wide photos at 320, 390, 768 and 1280 px. Chromium mobile emulation is used.
 
 The browser and Pages suites verify net sizes in g and ml on product cards, detail pages and the bag. The API suite changes net size without changing shipping and then crosses 5 kg by changing only packed weight. It also checks invalid units, legacy edits, clearing size and purchase-time size snapshots.
+
+## GitHub Pages publishing and homepage sections
+
+Build the standalone files with `npm run build:local` in frontend, then run `node tests/githubSync.mjs`. The test intercepts GitHub Contents and immutable raw file reads. It exercises auto-save, manual retry after denied writes, an already-open isolated phone, a fresh phone, Unicode hero text, cover sizing, automatic slides, control-free video, stale drafts and loading the published catalog on a second Admin. Real GitHub credentials, provider cache timing and physical-device autoplay need a deployment test.
+
+The GitHub publishing suite also registers and approves a second merchant under the same repository. It clicks the dashboard’s Open store link before first sync, publishes the second store, checks both storefronts on a separate browser and verifies isolated shopping bags and product links.
+
+Run `node tests/storeDesigner.mjs` from frontend after `npm run build:local` to check actual unsaved previews, independently aligned footer elements, logo shape, ordering, new and hidden custom sections, working desktop sidebar filters, narrow viewports and saved designs. The GitHub transport suite checks a published layout reaches another browser and another store keeps its own layout.
+
+Run `node tests/productFormatting.mjs` under frontend for product description lists and editable tables. It verifies retained headings, formatting selected lines, continued numbering, editing a table after save and reload, cell escaping, mobile widths and an exported customer storefront. Set TEST_URL and the QA owner variables to run it against the server and PostgreSQL.
+
+
+## Checkout stock, star ratings, newsletter rules and product disclosures
+
+Run these from the frontend directory after installing its dependencies and browser. Rebuild the HTML packages with `npm run build:local` after editing source.
+
+- `node tests/customerOffers.mjs` checks all four features in the direct-run portals. To run the same tests against ASP.NET and PostgreSQL, supply the disposable deployment’s TEST_URL, QA_OWNER_EMAIL and QA_OWNER_PASSWORD. The hosted case uses independent customer and Admin browser contexts.
+- `node tests/googleNewsletter.mjs` tests the Google button and signature, audience, expiry and email-verification checks in the Pages storefront with synthetic provider keys and a mock identity endpoint. A merchant OAuth client and authorized web origin are needed for a live account test.
+- `node tests/githubSync.mjs` exercises a simulated GitHub publish, checkout from the Admin browser, and preservation of an independent shopper’s remaining stock after republication.
+- `node tests/pages.mjs` with the hosted environment checks a cross-origin Pages checkout against PostgreSQL. Set Pages__Origin on the API to http://127.0.0.1:5197 for this test.

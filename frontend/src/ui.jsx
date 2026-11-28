@@ -15,7 +15,9 @@ export const statuses = [
 export async function api(path, method = "GET", body) {
   if (local) {
     try {
-      return await window.NW_LOCAL.request(path, method, body);
+      const result = await window.NW_LOCAL.request(path, method, body);
+      if (method !== "GET" && /^\/admin\/(brand|settings|newsletter-rule|products)(?:[/?]|$)/.test(path)) window.dispatchEvent(new Event("nw-catalog-saved"));
+      return result;
     } catch (e) {
       if ([401, 403].includes(e.status) && !path.startsWith("/auth/"))
         window.dispatchEvent(
@@ -91,11 +93,11 @@ export function useTheme(brand) {
     document.title = brand?.browserTitle || "Natur-Wala & Co.";
   }, [brand?.theme, brand?.browserTitle]);
 }
-export function Header({ brand, children }) {
+export function Header({ brand, children, design }) {
   return (
-    <header className="top">
-      <div className="brand">
-        <img className="logo" src={brand?.logo || logo} alt="" />
+    <header className="top" data-section={design && "header"} data-logo-align={design?.logoAlign}>
+      <div className="brand" data-logo-text={design?.logoText}>
+        <img className="logo" src={brand?.logo || logo} data-shape={design?.logoShape} data-size={design?.logoSize} alt={design?.logoText==="hidden" ? brand?.name : ""} />
         <span>{brand?.name || "Natur-Wala & Co."}</span>
       </div>
       <nav className="nav">{children}</nav>

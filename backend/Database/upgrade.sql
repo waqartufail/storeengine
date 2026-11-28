@@ -59,3 +59,14 @@ ALTER TABLE "Products" ADD COLUMN IF NOT EXISTS "NetQuantity" numeric,
  ADD COLUMN IF NOT EXISTS "NetUnit" text NOT NULL DEFAULT '';
 ALTER TABLE "OrderItems" ADD COLUMN IF NOT EXISTS "NetQuantity" numeric,
  ADD COLUMN IF NOT EXISTS "NetUnit" text NOT NULL DEFAULT '';
+
+ALTER TABLE "Shops" ADD COLUMN IF NOT EXISTS "HomepageJson" text NOT NULL DEFAULT (json_build_object()::text);
+ALTER TABLE "Products" ADD COLUMN IF NOT EXISTS "Disclosures" text NOT NULL DEFAULT '';
+ALTER TABLE "Orders" ADD COLUMN IF NOT EXISTS "NewsletterDiscount" numeric NOT NULL DEFAULT 0;
+CREATE TABLE IF NOT EXISTS "StarReviews" (
+ "ShopId" integer NOT NULL, "ProductId" integer NOT NULL, "Voter" text NOT NULL, "Stars" integer NOT NULL CHECK ("Stars" BETWEEN 1 AND 5),
+ PRIMARY KEY ("ShopId","ProductId","Voter"));
+CREATE TABLE IF NOT EXISTS "Subscribers" (
+ "ShopId" integer NOT NULL, "Email" text NOT NULL, "CodeHash" text NOT NULL, "Used" boolean NOT NULL DEFAULT false, "Joined" timestamptz NOT NULL,
+ PRIMARY KEY ("ShopId","Email"));
+CREATE INDEX IF NOT EXISTS "IX_Subscribers_ShopId_CodeHash" ON "Subscribers" ("ShopId","CodeHash");

@@ -1,3 +1,4 @@
+import NewsletterSettings from "./NewsletterSettings";
 import React, { useEffect, useState } from "react";
 import { api, Field, Select, Message, money, useAction } from "./ui";
 const offers = {
@@ -109,63 +110,66 @@ function Editor({ product, reload }) {
     </form>
   );
 }
-export default function Promotions({ products, reload }) {
+export default function Promotions({ products, reload, settings, refresh }) {
   const [id, select] = useState(""),
     [message, say] = useState("");
   const selected = products.find((p) => String(p.id) === id) || products[0];
   return (
-    <section className="panel">
-      <h2>Product promotions</h2>
-      <Message text={message} />
-      {selected ? (
-        <>
-          <label>
-            Product to promote
-            <select
-              aria-label="Product to promote"
-              value={selected.id}
-              onChange={(e) => {
-                select(e.target.value);
-                say("");
+    <>
+      <NewsletterSettings settings={settings} refresh={refresh} />
+      <section className="panel">
+        <h2>Product promotions</h2>
+        <Message text={message} />
+        {selected ? (
+          <>
+            <label>
+              Product to promote
+              <select
+                aria-label="Product to promote"
+                value={selected.id}
+                onChange={(e) => {
+                  select(e.target.value);
+                  say("");
+                }}
+              >
+                {products.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <Editor
+              key={selected.id + ":" + selected.version}
+              product={selected}
+              reload={async (msg) => {
+                await reload();
+                say(msg);
               }}
-            >
-              {products.map((p) => (
-                <option key={p.id} value={p.id}>
-                  {p.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <Editor
-            key={selected.id + ":" + selected.version}
-            product={selected}
-            reload={async (msg) => {
-              await reload();
-              say(msg);
-            }}
-          />
-          <h3>Current offers</h3>
-          {products.some((p) => p.promoKind !== "None") ? (
-            products
-              .filter((p) => p.promoKind !== "None")
-              .map((p) => (
-                <div className="row" key={p.id}>
-                  <div>
-                    <b>{p.name}</b>
-                    <small>{p.promoLabel}</small>
+            />
+            <h3>Current offers</h3>
+            {products.some((p) => p.promoKind !== "None") ? (
+              products
+                .filter((p) => p.promoKind !== "None")
+                .map((p) => (
+                  <div className="row" key={p.id}>
+                    <div>
+                      <b>{p.name}</b>
+                      <small>{p.promoLabel}</small>
+                    </div>
+                    <span>
+                      <del>{money(p.price)}</del> <b>{money(p.salePrice)}</b>
+                    </span>
                   </div>
-                  <span>
-                    <del>{money(p.price)}</del> <b>{money(p.salePrice)}</b>
-                  </span>
-                </div>
-              ))
-          ) : (
-            <p>No active offers.</p>
-          )}
-        </>
-      ) : (
-        <p>Add a product in Product Addition to apply a promotion.</p>
-      )}
-    </section>
+                ))
+            ) : (
+              <p>No active offers.</p>
+            )}
+          </>
+        ) : (
+          <p>Add a product in Product Addition to apply a promotion.</p>
+        )}
+      </section>
+    </>
   );
 }

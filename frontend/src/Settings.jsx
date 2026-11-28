@@ -1,18 +1,22 @@
+import StoreDesigner from "./StoreDesigner";
+import { HomeFields, sections } from "./HomeSections";
 import { GalleryEditor } from "./ProductMedia";
 import StoreLanguages from "./StoreLanguages";
 import StoreBrandFields from "./StoreBrandFields";
 import PostExToken from "./PostExToken";
+import { pagesLocation, pagesStoreUrl } from "./pagesLocation";
 import { link, local } from "./navigation";
 import React, { useState } from "react";
 import { Field, Select, Message, ImageField, useAction, api } from "./ui";
 import { themes } from "./themes";
-export default function Settings({ tab, settings, reload }) {
+export default function Settings({ tab, settings, reload, products = [] }) {
   const [brand, setBrand] = useState(settings.brand),
     [cfg, setCfg] = useState(settings.config),
     [custom, rename] = useState("");
   const [slideBusy, setSlideBusy] = useState(false);
   const [videoBusy, setVideoBusy] = useState(false);
   const a = useAction();
+  const target = local && pagesLocation();
   const patchBrand = (key, value) => setBrand((b) => ({ ...b, [key]: value }));
   const patch = (key, value) => setCfg((c) => ({ ...c, [key]: value }));
   function row(list, index, key, value) {
@@ -56,7 +60,19 @@ export default function Settings({ tab, settings, reload }) {
   return (
     <>
       <Message text={a.message} />
-      {tab === "store" ? (
+      {tab === "designer" ? (
+        <StoreDesigner
+          savedLayout={settings.brand.homepage?.layout}
+          brand={brand}
+          busy={a.busy}
+          save={(layout) =>
+            save(null, "brand", {
+              ...brand,
+              homepage: { ...brand.homepage, layout: JSON.stringify(layout) },
+            })
+          }
+        />
+      ) : tab === "store" ? (
         <section className="panel">
           <h3>Store branding</h3>
           <form className="form" onSubmit={(e) => save(e, "brand", brand)}>
@@ -80,26 +96,60 @@ export default function Settings({ tab, settings, reload }) {
               onChange={(v) => patchBrand("logo", v)}
               error={a.setMessage}
             />
-            <ImageField
-              label="Store banner"
-              value={brand.banner}
-              onChange={(v) => patchBrand("banner", v)}
-              error={a.setMessage}
-            />
-            <GalleryEditor
-              banners
-              photos={brand.bannerSlides || []}
-              onChange={(v) => patchBrand("bannerSlides", v)}
-              onBusy={setSlideBusy}
-            />
-            <StoreBrandFields
-              brand={brand}
-              patch={patchBrand}
-              onBusy={setVideoBusy}
-            />
-            <a href={link("/store/" + brand.slug)}>/store/{brand.slug}</a>
+            <a
+              href={
+                (target && pagesStoreUrl(target, brand.slug)) ||
+                link("/store/" + brand.slug)
+              }
+            >
+              Open store page
+            </a>
             <button disabled={a.busy || videoBusy || slideBusy} className="cta">
               Save branding
+            </button>
+          </form>
+        </section>
+      ) : Object.hasOwn(sections, tab) ? (
+        <section className="panel">
+          <h2>{sections[tab][0]}</h2>
+          <form className="form" onSubmit={(e) => save(e, "brand", brand)}>
+            <HomeFields
+              tab={tab}
+              home={brand.homepage || {}}
+              products={products}
+              update={(key, value) =>
+                setBrand((b) => ({
+                  ...b,
+                  homepage: { ...b.homepage, [key]: value },
+                }))
+              }
+            />
+            {tab === "hero" && (
+              <>
+                <ImageField
+                  label="Store banner"
+                  value={brand.banner}
+                  onChange={(v) => patchBrand("banner", v)}
+                  error={a.setMessage}
+                />
+                <GalleryEditor
+                  banners
+                  photos={brand.bannerSlides || []}
+                  onChange={(v) => patchBrand("bannerSlides", v)}
+                  onBusy={setSlideBusy}
+                />
+              </>
+            )}
+            {["hero", "footer"].includes(tab) && (
+              <StoreBrandFields
+                section={tab}
+                brand={brand}
+                patch={patchBrand}
+                onBusy={setVideoBusy}
+              />
+            )}
+            <button disabled={a.busy || videoBusy || slideBusy} className="cta">
+              Save section
             </button>
           </form>
         </section>

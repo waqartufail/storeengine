@@ -1,3 +1,4 @@
+import { ProductRating } from "./CustomerFeatures";
 import NetSize from "./NetSize";
 import { categories } from "./categories";
 import { Description } from "./Description";
@@ -100,6 +101,13 @@ export default function ProductPage({
               <Description text={p.details} />
             </>
           )}
+          {p.disclosures && (
+            <section className="productDisclosures">
+              <h3>{t("Product disclosures")}</h3>
+              <p>{p.disclosures}</p>
+            </section>
+          )}
+          <ProductRating slug={slug} id={p.id} t={t} />
         </section>
       </div>
       {suggested.length > 0 && (

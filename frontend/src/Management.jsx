@@ -1,3 +1,4 @@
+import { useGitHubSync } from "./GitHubSync";
 import ProductConfiguration from "./ProductConfiguration";
 import {
   currentPath,
@@ -26,6 +27,13 @@ const tabs = {
   payments: "Payment Configurations",
   themes: "Themes & Appearance",
   store: "Store",
+  designer: "Store designer",
+  hero: "Hero banner",
+  collections: "Category showcase",
+  featured: "Featured products",
+  catalog: "Catalog section",
+  story: "Store story",
+  footer: "Footer",
   languages: "Languages",
   publish: "Publish & sync",
 };
@@ -34,16 +42,47 @@ export function Admin({ settings, refresh, logout }) {
   const [products, setProducts] = useState([]),
     [orders, setOrders] = useState([]);
   const a = useAction();
+  const publisher = useGitHubSync(settings.brand.slug);
   useTheme(settings.brand);
   const reloadProducts = async () => setProducts(await api("/admin/products"));
   const reloadOrders = async () => setOrders(await api("/admin/orders"));
   const id = currentPath().match(/^\/admin\/orders\/(\d+)\/?$/)?.[1];
   useEffect(() => {
     if (id) return;
-    if (["products", "promotions", "details"].includes(tab))
+    if (["products", "promotions", "details", "featured"].includes(tab))
       reloadProducts().catch((e) => a.setMessage(e.message));
     if (tab === "orders") reloadOrders().catch((e) => a.setMessage(e.message));
   }, [tab, id]);
+  useEffect(() => {
+    if (tab !== "products" || id) return;
+    let active = true,
+      seq = 0,
+      lastRevision;
+    async function update() {
+      if (document.hidden) return;
+      const ticket = ++seq;
+      try {
+        const revision = await api(
+          "/stores/" + settings.brand.slug + "/revision",
+        );
+        if (!active || ticket !== seq || revision === lastRevision) return;
+        const rows = await api("/admin/products");
+        if (active && ticket === seq) {
+          lastRevision = revision;
+          setProducts(rows);
+        }
+      } catch {}
+    }
+    const timer = setInterval(update, 8000);
+    window.addEventListener("focus", update);
+    document.addEventListener("visibilitychange", update);
+    return () => {
+      active = false;
+      clearInterval(timer);
+      window.removeEventListener("focus", update);
+      document.removeEventListener("visibilitychange", update);
+    };
+  }, [tab, id, settings.brand.slug]);
   useEffect(() => {
     const cb = () => setTab(tabs[currentTab()] ? currentTab() : "orders");
     window.addEventListener("hashchange", cb);
@@ -65,7 +104,7 @@ export function Admin({ settings, refresh, logout }) {
     <>
       <Header brand={settings.brand}>
         <a
-          href={link("/store/" + settings.brand.slug)}
+          href={publisher.storeUrl || link("/store/" + settings.brand.slug)}
           target="_blank"
           rel="noreferrer"
         >
@@ -114,8 +153,9 @@ export function Admin({ settings, refresh, logout }) {
               </button>
             </div>
             <Message text={a.message} />
+            {publisher.target && <Message text={publisher.status} />}
             {tab === "publish" ? (
-              <PublishStore brand={settings.brand} />
+              <PublishStore brand={settings.brand} publisher={publisher} />
             ) : tab === "products" ? (
               <Products products={products} reload={reloadProducts} />
             ) : tab === "details" ? (
@@ -124,11 +164,17 @@ export function Admin({ settings, refresh, logout }) {
                 reload={reloadProducts}
               />
             ) : tab === "promotions" ? (
-              <Promotions products={products} reload={reloadProducts} />
+              <Promotions
+                products={products}
+                reload={reloadProducts}
+                settings={settings}
+                refresh={refresh}
+              />
             ) : tab === "orders" ? (
               <Orders orders={orders} reload={reloadOrders} />
             ) : (
               <Settings
+                products={products}
                 key={tab}
                 tab={tab}
                 settings={settings}

@@ -1,3 +1,4 @@
+import { readDesign } from "./storeDesign";
 import React, { useEffect, useState } from "react";
 import { api, Field, Message, exportJson } from "./ui";
 import {
@@ -8,6 +9,7 @@ import {
   localeName,
   direction,
 } from "./storeLocale";
+import { sections } from "./HomeSections";
 import codes from "./officialLanguages.json";
 import { storeCategories } from "./categories";
 const officialChoices = codes
@@ -28,10 +30,23 @@ export default function StoreLanguages({ brand, save, busy }) {
       .catch((e) => say(e.message));
   }, []);
   const texts = new Map(messagesEn.map((k) => [k, k]));
+  for (const [, fields] of Object.values(sections))
+    for (const [key, label, fallback] of fields)
+      texts.set(
+        "home:" + key,
+        brand.homepage?.[key] ||
+          fallback ||
+          (key === "heroKicker" ? brand.name : label),
+      );
+  for (const [id, block] of Object.entries(
+    readDesign(brand.homepage?.layout).blocks,
+  ))
+    for (const key of ["title", "text"])
+      if (block[key]) texts.set("home:" + id + ":" + key, block[key]);
   for (const c of storeCategories(products))
     texts.set("category:" + c.toLowerCase(), c);
   for (const p of products)
-    for (const k of ["name", "description", "details", "promoLabel"])
+    for (const k of ["name", "description", "details", "disclosures", "promoLabel"])
       if (p[k]) texts.set("p:" + p.id + ":" + k, p[k]);
   function add() {
     let canonical;

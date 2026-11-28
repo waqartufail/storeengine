@@ -44,22 +44,27 @@ export default function ProductConfiguration({ products, reload }) {
   );
 }
 function Editor({ product, saved }) {
-  const [details, describe] = useState(product.details || ""),
+  const [details, describe] = useState(
+      (product.details || "").replace(/\r\n/g, "\n"),
+    ),
+    [disclosures, setDisclosures] = useState(product.disclosures || ""),
     [cover, setCover] = useState(product.imageUrl || ""),
     [photos, setPhotos] = useState(product.gallery || []),
     [busy, setBusy] = useState(false),
     [coverBusy, setCoverBusy] = useState(false);
+  const [tableOpen, setTableOpen] = useState(false);
   const a = useAction();
   return (
     <form
       className="form"
       onSubmit={(e) => {
         e.preventDefault();
-        if (busy || coverBusy) return;
+        if (busy || coverBusy || tableOpen) return;
         a.run(async () => {
           await api("/admin/products/" + product.id, "PUT", {
             ...product,
             details,
+            disclosures,
             imageUrl: cover,
             gallery: photos,
           });
@@ -67,11 +72,28 @@ function Editor({ product, saved }) {
         });
       }}
     >
-      <DescriptionEditor value={details} onChange={describe} />
+      <DescriptionEditor
+        value={details}
+        onChange={describe}
+        onTableOpen={setTableOpen}
+      />
+      <label>
+        Product disclosures
+        <textarea
+          value={disclosures}
+          maxLength={5000}
+          rows={4}
+          onChange={(e) => setDisclosures(e.target.value)}
+          placeholder="For example: allergens, condition, warranty, or care instructions."
+        />
+      </label>
       <CoverPhoto value={cover} onChange={setCover} onBusy={setCoverBusy} />
       <GalleryEditor photos={photos} onChange={setPhotos} onBusy={setBusy} />
       <Message text={a.message} />
-      <button className="cta" disabled={a.busy || busy || coverBusy}>
+      <button
+        className="cta"
+        disabled={a.busy || busy || coverBusy || tableOpen}
+      >
         Save product details
       </button>
     </form>

@@ -1,3 +1,7 @@
+import { freshId } from "./freshId";
+import { NewsletterSignup } from "./CustomerFeatures";
+import { readDesign } from "./storeDesign";
+import { Showcase } from "./HomeSections";
 import NetSize from "./NetSize";
 import {
   categories,
@@ -21,17 +25,6 @@ import {
   useAction,
   useTheme,
 } from "./ui";
-function freshId() {
-  return (
-    crypto.randomUUID?.() ||
-    "10000000-1000-4000-8000-100000000000".replace(/[018]/g, (c) =>
-      (
-        +c ^
-        (crypto.getRandomValues(new Uint8Array(1))[0] & (15 >> (+c / 4)))
-      ).toString(16),
-    )
-  );
-}
 function storedReceipt(key) {
   try {
     const number = new URL(location.href).searchParams.get("order");
@@ -108,6 +101,20 @@ export default function Store({ slug, productId }) {
     [search, find] = useState(""),
     [pay, selectPay] = useState(""),
     [receipt, accept] = useState(() => storedReceipt(receiptKey));
+  const [offer, setOffer] = useState(() => {
+    try {
+      return localStorage.getItem(key + ".welcome") || "";
+    } catch {
+      return "";
+    }
+  });
+  function claim(code) {
+    setOffer(code);
+    try {
+      if (code) localStorage.setItem(key + ".welcome", code);
+      else localStorage.removeItem(key + ".welcome");
+    } catch {}
+  }
   const a = useAction();
   useTheme(data?.brand);
   const cfg = data?.brand.languages || defaults;
@@ -136,6 +143,13 @@ export default function Store({ slug, productId }) {
       localStorage.setItem(key + ".language", value);
     } catch {}
   }
+  useEffect(() => {
+    const focus = window.NW_LOCAL?.preview;
+    if (focus && data)
+      document
+        .querySelector('[data-section="' + focus + '"]')
+        ?.scrollIntoView({ block: "start" });
+  }, [data?.brand.slug]);
   const version = useRef(null),
     seq = useRef(0),
     pending = useRef(false);
@@ -204,7 +218,10 @@ export default function Store({ slug, productId }) {
   if (receipt)
     return (
       <>
-        <Header brand={data?.brand} />
+        <Header
+          brand={data?.brand}
+          design={readDesign(data?.brand?.homepage?.layout)}
+        />
         <main className="wrap">
           <section className="panel thankYou">
             <span className="eyebrow">{t("ORDER CONFIRMATION")}</span>
@@ -219,6 +236,12 @@ export default function Store({ slug, productId }) {
                 {t("Subtotal")}
                 <b>{fmt(receipt.subtotal)}</b>
               </p>
+              {receipt.newsletterDiscount > 0 && (
+                <p>
+                  {t("Newsletter discount")}
+                  <b>−{fmt(receipt.newsletterDiscount)}</b>
+                </p>
+              )}
               <p>
                 {t("Shipping")}
                 <b>{fmt(receipt.shipping)}</b>
@@ -262,22 +285,28 @@ export default function Store({ slug, productId }) {
   const products = data.products.map((p) => ({
     ...p,
     ...Object.fromEntries(
-      ["name", "description", "details", "promoLabel"].map((k) => [
-        k,
-        t("p:" + p.id + ":" + k, p[k] || ""),
-      ]),
+      ["name", "description", "details", "disclosures", "promoLabel"].map(
+        (k) => [k, t("p:" + p.id + ":" + k, p[k] || "")],
+      ),
     ),
   }));
+  const home = brand.homepage || {};
+  const design = readDesign(home.layout);
+  const copy = (key, fallback) => t("home:" + key, home[key] ?? t(fallback));
   const choices = storeCategories(products);
   function categoryUrl(c) {
-    const u = new URL(link("/store/" + slug), location.href);
+    const u = new URL(
+      link("/store/" + slug),
+      window.NW_LOCAL?.preview ? "https://preview.invalid/" : location.href,
+    );
     if (c) u.searchParams.set("category", c);
     else u.searchParams.delete("category");
     return u.href;
   }
   function pickCategory(c) {
     cat(c);
-    history.replaceState(history.state, "", categoryUrl(c));
+    if (!window.NW_LOCAL?.preview)
+      history.replaceState(history.state, "", categoryUrl(c));
   }
 
   const items = Object.entries(bag.items).map(([id, qty]) => ({
@@ -304,7 +333,12 @@ export default function Store({ slug, productId }) {
       ) *
         Math.round(shipping.extraPerKg * 100)
     : 0;
-  const total = (subCents + shipCents) / 100,
+  const rule = data.newsletter;
+  const discount =
+    offer && rule?.enabled && subCents >= Math.round(rule.minimum * 100)
+      ? Math.round((subCents * rule.percent) / 100)
+      : 0;
+  const total = (subCents - discount + shipCents) / 100,
     method = payments.find((x) => x.name === pay) || payments[0];
   const filtered = sortProducts(
     products.filter(
@@ -324,6 +358,7 @@ export default function Store({ slug, productId }) {
         paymentReference: form.paymentReference || "",
         requestId: bag.requestId,
         expectedTotal: total,
+        newsletterCode: discount ? offer : null,
         items: items.map((x) => ({ productId: x.id, quantity: x.qty })),
       }).catch(async (e) => {
         if ([404, 409].includes(e.status)) await load();
@@ -333,6 +368,7 @@ export default function Store({ slug, productId }) {
         id: r.id,
         total: r.total,
         subtotal: r.subtotal,
+        newsletterDiscount: r.newsletterDiscount,
         shipping: r.shipping,
         paymentMethod: r.paymentMethod,
       };
@@ -340,6 +376,7 @@ export default function Store({ slug, productId }) {
         sessionStorage.setItem(receiptKey, JSON.stringify(summary));
         receiptUrl(r.id);
       } catch {}
+      if (r.newsletterDiscount > 0) claim("");
       accept(summary);
       window.scrollTo(0, 0);
       setBag(newBag());
@@ -350,7 +387,7 @@ export default function Store({ slug, productId }) {
   }
   return (
     <>
-      <Header brand={brand}>
+      <Header brand={brand} design={design}>
         <a
           href={productId ? link("/store/" + slug) : "#catalog"}
           onClick={productId ? undefined : scrollToCatalog}
@@ -390,143 +427,282 @@ export default function Store({ slug, productId }) {
           add={() => change(Number(productId), (bag.items[productId] || 0) + 1)}
         />
       ) : (
-        <>
-          <section className="hero">
-            <div className="heroText">
-              <div className="eyebrow">{brand.name}</div>
-              <h1>
-                {t("Good things.")}
-                <br />
-                <em>{t("Better living.")}</em>
-              </h1>
-              <p>
-                {t(
-                  "Discover useful, well-designed essentials for your everyday life.",
-                )}
-              </p>
-              <a className="cta" href="#catalog" onClick={scrollToCatalog}>
-                {t("Explore collection")} →
-              </a>
-            </div>
-            <div className="heroImg">
-              <StoreBanner brand={brand} t={t} />
-            </div>
-          </section>
-          <main className="wrap" id="catalog">
-            <div className="head">
-              <div>
-                <div className="eyebrow">{t("THE COLLECTION")}</div>
-                <h2>{t("Shop essentials")}</h2>
-              </div>
-              <input
-                className="search"
-                aria-label={t("Search products")}
-                placeholder={t("Search products") + "..."}
-                value={search}
-                onChange={(e) => find(e.target.value)}
-              />
-            </div>
-            <div className="catalogTools">
-              <div className="filters">
-                {["", ...choices].map((c) => (
-                  <button
-                    aria-pressed={category === c}
-                    key={c}
-                    className={category === c ? "on" : ""}
-                    onClick={() => pickCategory(c)}
-                  >
-                    {c ? catLabel(c) : t("All")}
-                  </button>
-                ))}
-              </div>
-              <label>
-                {t("Sort by")}{" "}
-                <select
-                  aria-label={t("Sort by")}
-                  value={sort}
-                  onChange={(e) => setSort(e.target.value)}
+        design.order.map((id) => {
+          switch (id) {
+            default: {
+              const block = design.blocks[id];
+              if (!block?.visible) return null;
+              return (
+                <section
+                  key={id}
+                  className="wrap homeBand merchantBlock"
+                  data-section={id}
+                  data-story={block.layout}
+                  data-align={block.align}
                 >
-                  {[
-                    ["new", "Newest to oldest"],
-                    ["old", "Oldest to newest"],
-                    ["price-low", "Price low to high"],
-                    ["price-high", "Price high to low"],
-                  ].map(([value, label]) => (
-                    <option key={value} value={value}>
-                      {t(label)}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>
-            <div className="grid">
-              {filtered.map((p) => (
-                <article className="product" key={p.id}>
-                  <a
-                    className="photo"
-                    aria-label={"View " + p.name + " details"}
-                    href={link("/store/" + slug + "/products/" + p.id)}
-                  >
-                    <ProductPhoto
-                      sources={[
-                        p.imageUrl,
-                        ...(p.gallery || []),
-                        brand.logo,
-                        logo,
-                      ]}
-                      alt={p.name}
-                      className={
-                        !p.imageUrl && !p.gallery?.length ? "placeholder" : ""
-                      }
+                  {block.image && (
+                    <img
+                      src={block.image}
+                      alt=""
+                      loading="lazy"
+                      referrerPolicy="no-referrer"
                     />
-                  </a>
-                  <div className="info">
-                    <div className="meta">
-                      <span>
-                        {categories(p.category).map(catLabel).join(", ")}
-                      </span>
-                      <span>
-                        {p.stock
-                          ? p.stock + " " + t("available")
-                          : t("Out of stock")}
-                      </span>
-                    </div>
-                    <h3>
-                      <a href={link("/store/" + slug + "/products/" + p.id)}>
-                        {p.name}
-                      </a>
-                    </h3>
-                    <NetSize product={p} />
-                    <p>{p.description}</p>
-                    {p.promoLabel && (
-                      <p>
-                        <span className="statusPill">{p.promoLabel}</span>{" "}
-                        <del>{fmt(p.price)}</del>
-                      </p>
+                  )}
+                  <div>
+                    {block.title && (
+                      <h2>{t("home:" + id + ":title", block.title)}</h2>
                     )}
-                    <strong>{fmt(p.salePrice)}</strong>
-                    <button
-                      className="add"
-                      aria-label={"Add " + p.name + " to bag"}
-                      disabled={p.stock <= (bag.items[p.id] || 0)}
-                      onClick={() => change(p.id, (bag.items[p.id] || 0) + 1)}
-                    >
-                      +
-                    </button>
+                    {block.text && (
+                      <p>{t("home:" + id + ":text", block.text)}</p>
+                    )}
                   </div>
-                </article>
-              ))}
-            </div>
-            {!filtered.length && (
-              <p className="muted">{t("No products found.")}</p>
-            )}
-          </main>
-        </>
+                </section>
+              );
+            }
+            case "hero":
+              return (
+                <section
+                  key={id}
+                  className="hero coverHero"
+                  data-section="hero"
+                  data-hero={design.heroStyle}
+                  data-align={design.heroAlign}
+                >
+                  <div className="heroImg">
+                    <StoreBanner brand={brand} t={t} />
+                  </div>
+                  <div className="heroText">
+                    <div className="eyebrow">
+                      {copy("heroKicker", brand.name)}
+                    </div>
+                    <h1>
+                      {copy("heroTitle", "Good things.")}
+                      {copy("heroAccent", "Better living.") && (
+                        <>
+                          <br />
+                          <em>{copy("heroAccent", "Better living.")}</em>
+                        </>
+                      )}
+                    </h1>
+                    <p>
+                      {copy(
+                        "heroText",
+                        "Discover useful, well-designed essentials for your everyday life.",
+                      )}
+                    </p>
+                    {copy("heroButton", "Explore collection") && (
+                      <a
+                        className="cta"
+                        href="#catalog"
+                        onClick={scrollToCatalog}
+                      >
+                        {copy("heroButton", "Explore collection")} →
+                      </a>
+                    )}
+                  </div>
+                </section>
+              );
+            case "collections":
+            case "featured":
+              return (
+                <Showcase
+                  key={id}
+                  home={home}
+                  section={id}
+                  design={design}
+                  products={products}
+                  choices={choices}
+                  slug={slug}
+                  categoryUrl={categoryUrl}
+                  pick={(c) => {
+                    find("");
+                    pickCategory(c);
+                  }}
+                  catLabel={catLabel}
+                  t={t}
+                  fmt={fmt}
+                />
+              );
+            case "catalog":
+              return (
+                <main
+                  key={id}
+                  className="wrap"
+                  id="catalog"
+                  data-section="catalog"
+                  data-filters={design.filterPosition}
+                >
+                  <div className="head">
+                    <div>
+                      <div className="eyebrow">
+                        {copy("catalogKicker", "THE COLLECTION")}
+                      </div>
+                      <h2>{copy("catalogTitle", "Shop essentials")}</h2>
+                    </div>
+                    <input
+                      className="search"
+                      aria-label={t("Search products")}
+                      placeholder={t("Search products") + "..."}
+                      value={search}
+                      onChange={(e) => find(e.target.value)}
+                    />
+                  </div>
+                  <div className="catalogTools">
+                    {design.filterStyle === "select" ? (
+                      <label>
+                        {t("Categories")}{" "}
+                        <select
+                          aria-label={t("Categories")}
+                          value={category}
+                          onChange={(e) => pickCategory(e.target.value)}
+                        >
+                          {["", ...choices].map((c) => (
+                            <option key={c} value={c}>
+                              {c ? catLabel(c) : t("All")}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    ) : (
+                      <div className="filters">
+                        {["", ...choices].map((c) => (
+                          <button
+                            aria-pressed={category === c}
+                            key={c}
+                            className={category === c ? "on" : ""}
+                            onClick={() => pickCategory(c)}
+                          >
+                            {c ? catLabel(c) : t("All")}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    <label>
+                      {t("Sort by")}{" "}
+                      <select
+                        aria-label={t("Sort by")}
+                        value={sort}
+                        onChange={(e) => setSort(e.target.value)}
+                      >
+                        {[
+                          ["new", "Newest to oldest"],
+                          ["old", "Oldest to newest"],
+                          ["price-low", "Price low to high"],
+                          ["price-high", "Price high to low"],
+                        ].map(([value, label]) => (
+                          <option key={value} value={value}>
+                            {t(label)}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
+                  <div className="grid" data-shelf={design.productLayout}>
+                    {filtered.map((p) => (
+                      <article className="product" key={p.id}>
+                        <a
+                          className="photo"
+                          aria-label={"View " + p.name + " details"}
+                          href={link("/store/" + slug + "/products/" + p.id)}
+                        >
+                          <ProductPhoto
+                            sources={[
+                              p.imageUrl,
+                              ...(p.gallery || []),
+                              brand.logo,
+                              logo,
+                            ]}
+                            alt={p.name}
+                            className={
+                              !p.imageUrl && !p.gallery?.length
+                                ? "placeholder"
+                                : ""
+                            }
+                          />
+                        </a>
+                        <div className="info">
+                          <div className="meta">
+                            <span>
+                              {categories(p.category).map(catLabel).join(", ")}
+                            </span>
+                            <span>
+                              {p.stock
+                                ? p.stock + " " + t("available")
+                                : t("Out of stock")}
+                            </span>
+                          </div>
+                          <h3>
+                            <a
+                              href={link(
+                                "/store/" + slug + "/products/" + p.id,
+                              )}
+                            >
+                              {p.name}
+                            </a>
+                          </h3>
+                          <NetSize product={p} />
+                          <p>{p.description}</p>
+                          {p.promoLabel && (
+                            <p>
+                              <span className="statusPill">{p.promoLabel}</span>{" "}
+                              <del>{fmt(p.price)}</del>
+                            </p>
+                          )}
+                          <strong>{fmt(p.salePrice)}</strong>
+                          <button
+                            className="add"
+                            aria-label={"Add " + p.name + " to bag"}
+                            disabled={p.stock <= (bag.items[p.id] || 0)}
+                            onClick={() =>
+                              change(p.id, (bag.items[p.id] || 0) + 1)
+                            }
+                          >
+                            +
+                          </button>
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                  {!filtered.length && (
+                    <p className="muted">{t("No products found.")}</p>
+                  )}
+                </main>
+              );
+            case "story":
+              return (
+                home.storyVisible !== "off" &&
+                home.storyText && (
+                  <section
+                    key={id}
+                    className="wrap homeBand storyBand"
+                    data-section="story"
+                    data-story={design.storyLayout}
+                    data-align={design.storyAlign}
+                  >
+                    <h2>{copy("storyTitle", "Our story")}</h2>
+                    <p>{copy("storyText", "")}</p>
+                  </section>
+                )
+              );
+          }
+        })
       )}
-      <footer className="foot">
-        <b>{brand.name}</b>
+      <NewsletterSignup
+        slug={slug}
+        rule={rule}
+        offer={offer}
+        claim={claim}
+        t={t}
+      />
+      <footer className="foot" data-section="footer">
+        <b className="footName" data-align={design.nameAlign}>
+          {brand.name}
+        </b>
+        {home.footerText && (
+          <p data-align={design.messageAlign}>{copy("footerText", "")}</p>
+        )}
         {choices.length > 0 && (
-          <nav aria-label={t("Categories")}>
+          <nav data-align={design.categoryAlign} aria-label={t("Categories")}>
             {choices.map((c) => (
               <a
                 key={c}
@@ -552,7 +728,7 @@ export default function Store({ slug, productId }) {
           </nav>
         )}
         {!!brand.socialLinks?.length && (
-          <nav aria-label={t("Social media")}>
+          <nav data-align={design.socialAlign} aria-label={t("Social media")}>
             {brand.socialLinks
               .filter((x) => /^https:\/\//i.test(x.url))
               .map((x, i) => (
@@ -618,6 +794,15 @@ export default function Store({ slug, productId }) {
                 {t("Subtotal")}
                 <b>{fmt(subCents / 100)}</b>
               </p>
+              {offer && (
+                <p>
+                  {t("Newsletter discount")}
+                  <b>−{fmt(discount / 100)}</b>
+                  <button className="secondary" onClick={() => claim("")}>
+                    {t("Remove offer")}
+                  </button>
+                </p>
+              )}
               <p>
                 {t("Shipping")} <b>{fmt(shipCents / 100)}</b>
               </p>

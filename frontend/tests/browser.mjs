@@ -53,6 +53,7 @@ async function submit(p, text, path) {
       "Request approval": "Registration received.",
       "Save product": "Product saved.",
       "Save branding": "Settings saved.",
+      "Save section": "Settings saved.",
       "Save shipping & couriers": "Settings saved.",
       "Save payment settings": "Settings saved.",
     }[text];
@@ -186,9 +187,11 @@ try {
   await admin.getByRole("button", { name: "Store", exact: true }).click();
   await admin.getByLabel("Browser title").fill("Natur Tea Shop");
   await admin.getByLabel("Store logo").setInputFiles(image);
+  await submit(admin, "Save branding", "/admin/brand");
+  await admin.getByRole("button", { name: "Hero banner", exact: true }).click();
   await admin.getByLabel("Store banner").setInputFiles(image);
   await admin.getByAltText("Store banner preview").waitFor();
-  await submit(admin, "Save branding", "/admin/brand");
+  await submit(admin, "Save section", "/admin/brand");
   await narrow(admin);
   await admin
     .getByRole("button", { name: "Courier Configuration", exact: true })

@@ -1,3 +1,4 @@
+import { validOffer } from "../src/newsletterRule";
 import {
   fail,
   active,
@@ -6,7 +7,7 @@ import {
   text,
   isHttps,
   stale,
-  publicRoute,
+  publicRequest,
 } from "./commerce";
 import { accounts, hash, session, store, transaction } from "./storage";
 import { categories } from "../src/categories";
@@ -115,8 +116,7 @@ function product(s, state, id, b, method, query) {
 }
 function route(state, parts, query, method, b) {
   const [area, section, arg, action] = parts;
-  if (area === "directory" || area === "stores")
-    return publicRoute(state, parts, method, b);
+
   if (area === "owner") {
     if (!session("owner")) fail("Please sign in to the owner portal.", 401);
     if (!arg)
@@ -148,6 +148,44 @@ function route(state, parts, query, method, b) {
   }
   if (area !== "admin") fail("Page unavailable.", 404);
   const s = admin(state);
+  if (section === "import-public" && method === "PUT") {
+    if (
+      b.brand?.slug !== s.slug ||
+      !Array.isArray(b.products) ||
+      !b.shipping ||
+      !Array.isArray(b.payments)
+    )
+      fail("This published catalog belongs to a different store.");
+    s.brand = { ...s.brand, ...b.brand, slug: s.slug };
+    s.name = s.brand.name;
+    s.products = b.products;
+    state.nextProduct = s.products.reduce(
+      (n, p) => Math.max(n, p.id + 1),
+      state.nextProduct,
+    );
+    s.config.shipping = b.shipping;
+    if (b.newsletter) s.config.newsletter = b.newsletter;
+    s.config.payments = [
+      ...b.payments,
+      ...s.config.payments
+        .filter((p) => !b.payments.some((x) => x.name === p.name))
+        .map((p) => ({ ...p, enabled: false })),
+    ];
+    s.version++;
+    return;
+  }
+  if (section === "subscribers" && method === "GET")
+    return (s.subscribers || []).map(({ email, used, joined }) => ({
+      email,
+      used,
+      joined,
+    }));
+  if (section === "newsletter-rule" && method === "PUT") {
+    if (b.version !== s.version) stale();
+    if (!validOffer(b.rule)) fail("Check newsletter rule.");
+    s.config.newsletter = b.rule;
+    return { version: ++s.version };
+  }
   if (section === "access") return;
   if (section === "settings" && method === "GET")
     return {
@@ -193,6 +231,7 @@ function route(state, parts, query, method, b) {
         browserTitle: b.browserTitle,
         slug: s.slug,
         banner: b.banner,
+        homepage: b.homepage ?? s.brand.homepage,
         bannerSlides: b.bannerSlides ?? s.brand.bannerSlides ?? [],
         languages: b.languages ?? s.brand.languages,
         socialLinks: links,
@@ -222,7 +261,7 @@ function route(state, parts, query, method, b) {
         fail(
           "Check rates, the default courier, payment names and hosted card link.",
         );
-      s.config = c;
+      s.config = { ...c, newsletter: s.config.newsletter };
     }
     return { version: ++s.version };
   }
@@ -268,6 +307,8 @@ export async function request(path, method = "GET", b = {}) {
     (parts[0] === "admin" || (parts[0] === "auth" && parts[1] !== "owner"))
   )
     fail("Unavailable.", 404);
+  if (parts[0] === "directory" || parts[0] === "stores")
+    return publicRequest(transaction)(raw, method, b);
   if (parts[0] !== "auth")
     return transaction(method !== "GET", (state) =>
       route(state, parts, new URLSearchParams(query), method, b),

@@ -124,6 +124,7 @@ static class Sales
         {
             o.Id,
             o.Subtotal,
+            o.NewsletterDiscount,
             o.Shipping,
             o.Total,
             o.WeightKg,
@@ -199,7 +200,17 @@ static class Sales
         o.Shipping =
             (highest > 0 ? highest : rate.BaseCharge)
             + Math.Max(0, decimal.Ceiling(o.WeightKg - rate.IncludedWeight)) * rate.ExtraPerKg;
-        o.Total = o.Subtotal + o.Shipping;
+        if (!string.IsNullOrEmpty(req.NewsletterCode)) {
+            var rule=config.Newsletter;
+            if(rule?.Enabled!=true || o.Subtotal < rule.Minimum || req.NewsletterCode.Length>128)
+                return Rules.Bad("The newsletter offer no longer applies to this bag.");
+            var hash=CustomerOffers.Hash(req.NewsletterCode);
+            var sub=await db.Subscribers.SingleOrDefaultAsync(x=>x.ShopId==s.Id && x.CodeHash==hash && !x.Used);
+            if(sub==null) return Rules.Bad("This newsletter offer has already been used or is unavailable.");
+            o.NewsletterDiscount=Math.Round(o.Subtotal*rule.Percent/100,2,MidpointRounding.AwayFromZero);
+            sub.Used=true;
+        }
+        o.Total = o.Subtotal - o.NewsletterDiscount + o.Shipping;
         if (o.Total != req.ExpectedTotal || o.Total > 9999999999.99m)
             return Results.Conflict(
                 new

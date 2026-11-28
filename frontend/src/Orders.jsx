@@ -204,6 +204,11 @@ export function Detail({ id, settings }) {
               <p>
                 Subtotal <b>{money(o.subtotal)}</b>
               </p>
+              {o.newsletterDiscount > 0 && (
+                <p>
+                  Newsletter discount <b>−{money(o.newsletterDiscount)}</b>
+                </p>
+              )}
               <p>
                 Shipping <b>{money(o.shipping)}</b>
               </p>

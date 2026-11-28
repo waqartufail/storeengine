@@ -2,6 +2,8 @@ using Microsoft.EntityFrameworkCore;
 
 class StoreDb(DbContextOptions<StoreDb> options) : DbContext(options)
 {
+    public DbSet<StarReview> StarReviews => Set<StarReview>();
+    public DbSet<Subscriber> Subscribers => Set<Subscriber>();
     public DbSet<Shop> Shops => Set<Shop>();
     public DbSet<Product> Products => Set<Product>();
     public DbSet<Order> Orders => Set<Order>();
@@ -9,6 +11,9 @@ class StoreDb(DbContextOptions<StoreDb> options) : DbContext(options)
 
     protected override void OnModelCreating(ModelBuilder b)
     {
+        b.Entity<StarReview>().HasKey(x=>new{x.ShopId,x.ProductId,x.Voter});
+        b.Entity<Subscriber>().HasKey(x=>new{x.ShopId,x.Email});
+        b.Entity<Subscriber>().HasIndex(x=>new{x.ShopId,x.CodeHash});
         b.Entity<Product>().Property(x => x.Price).HasPrecision(12, 2);
         b.Entity<Order>().Property(x => x.Total).HasPrecision(12, 2);
         b.Entity<OrderItem>().Property(x => x.UnitPrice).HasPrecision(12, 2);
@@ -24,6 +29,7 @@ class Product
 {
     public decimal? NetQuantity { get; set; }
     public string NetUnit { get; set; } = "";
+    public string Disclosures { get; set; } = "";
     public string Details { get; set; } = "";
     public string[] Gallery { get; set; } = [];
     public int? ShopId { get; set; }
@@ -67,6 +73,7 @@ class Order
     public bool PaymentVerified { get; set; }
     public decimal WeightKg { get; set; }
     public decimal Shipping { get; set; }
+    public decimal NewsletterDiscount { get; set; }
     public decimal Subtotal { get; set; }
     public int Id { get; set; }
     public string CustomerName { get; set; } = "";
@@ -109,6 +116,7 @@ class Shop
     public string Logo { get; set; } = "";
     public string Banner { get; set; } = "";
     public string[] BannerSlides { get; set; } = [];
+    public string HomepageJson { get; set; } = "{}";
     public string LocalizationJson { get; set; } = "";
     public string PromoVideo { get; set; } = "";
     public string SocialLinksJson { get; set; } = "[]";
@@ -152,6 +160,7 @@ record WhatsApp(
 
 class ShopConfig
 {
+    public NewsletterRule? Newsletter { get; set; }
     public Shipping Shipping { get; set; } = new();
     public string DefaultShipper { get; set; } = "PostEx";
     public List<Courier> Couriers { get; set; } =
@@ -188,7 +197,8 @@ record Branding(
     string? PromoVideo = null,
     SocialLink[]? SocialLinks = null,
     string[]? BannerSlides = null,
-    StoreLanguages? Languages = null
+    StoreLanguages? Languages = null,
+    Dictionary<string,string>? Homepage = null
 );
 
 record StoreLanguages(string Default, Dictionary<string, Dictionary<string, string>> Packs);
@@ -213,7 +223,8 @@ record ProductInput(
     string? Details = null,
     string[]? Gallery = null,
     decimal? NetQuantity = null,
-    string? NetUnit = null
+    string? NetUnit = null,
+    string? Disclosures = null
 );
 
 record OrderLine(int ProductId, int Quantity);
@@ -227,9 +238,28 @@ record Checkout(
     string PaymentReference,
     string RequestId,
     List<OrderLine> Items,
-    decimal ExpectedTotal
+    decimal ExpectedTotal,
+    string? NewsletterCode = null
 );
 
 record StatusEdit(string Status);
 
 record BookingUpdate(string Tracking, bool ConfirmUnbooked);
+
+record NewsletterRule(bool Enabled=false, int Percent=15, decimal Minimum=0, string GoogleClientId="", bool GoogleOnly=false);
+record RuleEdit(NewsletterRule Rule,long Version);
+record SignupOffer(string? Email,bool Consent,string? Credential);
+record RatingInput(int Stars,string Voter);
+class StarReview {
+    public int ShopId { get; set; }
+    public int ProductId { get; set; }
+    public string Voter { get; set; } = "";
+    public int Stars { get; set; }
+}
+class Subscriber {
+    public int ShopId { get; set; }
+    public string Email { get; set; } = "";
+    public string CodeHash { get; set; } = "";
+    public bool Used { get; set; }
+    public DateTime Joined { get; set; } = DateTime.UtcNow;
+}

@@ -1,3 +1,6 @@
+import { freshId } from "../src/freshId";
+import { googleEmail } from "./googleEmail";
+import { defaultOffer } from "../src/newsletterRule";
 export function fail(message, status = 400) {
   throw Object.assign(Error(message), { status });
 }
@@ -80,13 +83,26 @@ export function checkout(s, state, b) {
       Math.ceil((grams - Math.round(rate.includedWeight * 1000)) / 1000),
     ) *
       cents(rate.extraPerKg);
-  if (cents(b.expectedTotal) !== subtotal + shipping) stale();
+  let discount = 0;
+  if (b.newsletterCode) {
+    const rule = s.config.newsletter;
+    const sub = s.subscribers?.find(
+      (x) => x.code === b.newsletterCode && !x.used,
+    );
+    if (!rule?.enabled || !sub || subtotal < cents(rule.minimum))
+      fail("Newsletter offer unavailable for this order.");
+    discount = Math.round((subtotal * rule.percent) / 100);
+    sub.used = true;
+  }
+  if (cents(b.expectedTotal) !== subtotal - discount + shipping) stale();
+  const { newsletterCode, ...delivery } = b;
   const o = {
-    ...b,
+    ...delivery,
+    newsletterDiscount: discount / 100,
     id: state.nextOrder++,
     subtotal: subtotal / 100,
     shipping: shipping / 100,
-    total: (subtotal + shipping) / 100,
+    total: (subtotal - discount + shipping) / 100,
     weightKg: grams / 1000,
     items,
     createdAt: new Date().toISOString(),
@@ -101,7 +117,7 @@ export function checkout(s, state, b) {
   return o;
 }
 
-export function publicRoute(state, parts, method, body) {
+export function publicRoute(state, parts, method, body, verifiedClient = null) {
   const [area, slug, action] = parts;
   if (area === "directory" && method === "GET")
     return state.stores
@@ -109,6 +125,68 @@ export function publicRoute(state, parts, method, body) {
       .map((s) => ({ slug: s.slug, name: s.name }));
   const s = state.stores.find((x) => x.slug === slug);
   if (area !== "stores" || !active(s)) fail("This store is unavailable.", 404);
+  if (action === "newsletter" && method === "POST") {
+    const rule = s.config.newsletter;
+    const email = String(body.email || "")
+      .trim()
+      .toLowerCase();
+    if (
+      !rule?.enabled ||
+      body.consent !== true ||
+      ((verifiedClient || rule.googleOnly) &&
+        verifiedClient !== rule.googleClientId) ||
+      body.credential ||
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ||
+      email.length > 254
+    )
+      fail(
+        "Use a valid email with consent and the sign-in method selected by this store.",
+      );
+    s.subscribers ??= [];
+    const prior = s.subscribers.find((x) => x.email === email);
+    if (prior && (!verifiedClient || prior.used))
+      fail("A welcome offer is unavailable for this address.");
+    const code = freshId();
+    if (prior) prior.code = code;
+    else
+      s.subscribers.push({
+        email,
+        used: false,
+        joined: new Date().toISOString(),
+        code,
+      });
+    return { code };
+  }
+  if (action === "products" && parts[4] === "rating") {
+    const productId = Number(parts[3]);
+    if (!s.products.some((p) => p.id === productId))
+      fail("Product unavailable.", 404);
+    const rows = s.ratings || [];
+    if (method === "POST") {
+      if (
+        !Number.isInteger(body.stars) ||
+        body.stars < 1 ||
+        body.stars > 5 ||
+        !text(body.voter, 64)
+      )
+        fail("Choose one to five stars.");
+      const old = rows.find(
+        (x) => x.id === productId && x.voter === body.voter,
+      );
+      if (old) old.stars = body.stars;
+      else rows.push({ id: productId, voter: body.voter, stars: body.stars });
+      s.ratings = rows;
+    }
+    const votes = rows.filter((x) => x.id === productId);
+    return {
+      count: votes.length,
+      average: votes.length
+        ? Math.round(
+            (votes.reduce((n, x) => n + x.stars, 0) * 10) / votes.length,
+          ) / 10
+        : 0,
+    };
+  }
   if (action === "orders" && method === "POST") return checkout(s, state, body);
   const revision =
     String(s.version ?? 0) +
@@ -119,6 +197,7 @@ export function publicRoute(state, parts, method, body) {
   return {
     revision,
     brand: s.brand,
+    newsletter: s.config.newsletter || defaultOffer,
     shipping: s.config.shipping,
     payments: s.config.payments.filter((x) => x.enabled),
     products: s.products,
@@ -126,7 +205,20 @@ export function publicRoute(state, parts, method, body) {
 }
 export const publicRequest =
   (transaction) =>
-  (path, method = "GET", body = {}) =>
-    transaction(method !== "GET", (s) =>
-      publicRoute(s, path.split("/").filter(Boolean), method, body),
+  async (path, method = "GET", body = {}) => {
+    const parts = path.split("/").filter(Boolean);
+    let verified = null;
+    if (parts[2] === "newsletter" && method === "POST" && body.credential) {
+      verified = await transaction(
+        false,
+        (state) =>
+          state.stores.find((s) => s.slug === parts[1])?.config.newsletter
+            ?.googleClientId,
+      );
+      const email = await googleEmail(body.credential, verified);
+      body = { ...body, email, credential: null };
+    }
+    return transaction(method !== "GET", (s) =>
+      publicRoute(s, parts, method, body, verified),
     );
+  };

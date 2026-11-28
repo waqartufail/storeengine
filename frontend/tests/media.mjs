@@ -102,15 +102,18 @@ try {
   await ctx.route(videoUrl, (r) =>
     r.fulfill({ contentType: "video/webm", body: clip }),
   );
-  await p.getByRole("button", { name: "Store", exact: true }).click();
+  await p.getByRole("button", { name: "Hero banner", exact: true }).click();
   await p.getByLabel("Banner video URL").fill(videoUrl);
+  await p.getByRole("button", { name: "Save section" }).click();
+  await p.getByText("Settings saved.", { exact: true }).waitFor();
+  await p.getByRole("button", { name: "Footer", exact: true }).click();
   await p.getByRole("button", { name: "Add social link" }).click();
   await p.getByLabel("Platform name 1").fill("Instagram");
   await p
     .getByLabel("Profile URL 1")
     .fill("https://www.instagram.com/example.shop/");
   const saveBrand = async () => {
-    await p.getByRole("button", { name: "Save branding" }).click();
+    await p.getByRole("button", { name: "Save section" }).click();
     await p.getByText("Settings saved.", { exact: true }).waitFor();
   };
   await saveBrand();
@@ -142,6 +145,7 @@ try {
       .getAttribute("href"),
     "https://www.instagram.com/example.shop/",
   );
+  await p.getByRole("button", { name: "Hero banner", exact: true }).click();
   await p.getByLabel("Upload banner video").setInputFiles({
     name: "banner.webm",
     mimeType: "video/webm",
@@ -308,8 +312,10 @@ try {
   console.log(
     "PASS uploaded and remote video playback, footer link, description headings and related-product navigation in store and exported Pages file",
   );
-  await p.getByRole("button", { name: "Store", exact: true }).click();
+  await p.getByRole("button", { name: "Hero banner", exact: true }).click();
   await p.getByRole("button", { name: "Remove video", exact: true }).click();
+  await saveBrand();
+  await p.getByRole("button", { name: "Footer", exact: true }).click();
   await p
     .getByRole("button", { name: "Remove social link 1", exact: true })
     .click();

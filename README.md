@@ -10,11 +10,45 @@ Extract the ZIP into a folder and open the HTML file for your role in Chrome or 
 | admin.html | Merchant signup and login, product promotions, orders, payments and store settings. |
 | owner.html | Platform owner login, registration approvals, plans and deactivation. Keep this file in your private working folder. |
 
+## Stock, ratings, newsletter offers and disclosures
+
+| Where to go | What happens |
+|---|---|
+| **Admin → Product Addition** | The stock list follows completed checkouts while open. It checks for changes every eight seconds while visible and on return to the tab. Saving an outdated product edit prompts you to review the current quantity. |
+| **Store → product detail → Customer ratings** | Choose one to five stars. The page shows average and count. Selecting another star in the same browser updates that vote. Ratings are anonymous and do not require a purchase. |
+| **Admin → Product Details** | Select a product, fill **Product disclosures**, then **Save product details**. Line breaks are preserved. Use this field for ingredients, allergens, refurbished condition, excluded accessories or warranty terms. The section appears on that product when populated. |
+| **Admin → Promotions → Newsletter welcome discount** | Enable the rule, set the percentage (initially 15) and the minimum product subtotal, then choose **Save newsletter rule**. Set the minimum to zero to allow any eligible bag. **View subscribers** shows addresses and redemption status to this store’s Admin. |
+| **Store → Newsletter welcome offer** | The shopper gives email consent and subscribes. An eligible bag applies the discount automatically. The percentage applies to merchandise after product promotions. Shipping is charged separately. Checkout, the receipt and the Admin order all use the same amount. A successful redemption consumes the offer once. A failed checkout leaves it available. |
+
+**Example.** Two products at PKR 1,000 each qualify for a 15% welcome discount of PKR 300. With PKR 200 shipping, the order total is PKR 1,900. An order for two units reduces a stock count of five to three. Repeating the same checkout request returns the original order number.
+
+### Enable Google for newsletter subscribers
+
+1. In Google Cloud, configure Google Auth Platform for the storefront. For a project in testing, add the intended Google test accounts under **Audience**.
+2. Under **Clients**, create an OAuth client of type **Web application**. Add the customer storefront to **Authorized JavaScript origins**. For `https://ACCOUNT.github.io/REPO/` enter `https://ACCOUNT.github.io`. Include the port when testing on localhost.
+3. Paste the **client ID** ending in `.apps.googleusercontent.com` into **Admin → Promotions → Google web client ID**. The form needs only the public client ID. Choose **Require Google sign-in to claim the offer** if every subscriber must verify their Google email. Otherwise subscribers can enter an email directly or use Google.
+4. Save the newsletter rule and open the hosted store. After the shopper checks the newsletter consent box, the Google sign-in button appears. For local HTML file testing use the email option. Google requires a supported web origin. The hosted API verifies the Google credential before issuing an offer.
+
+Email-only signup records the address and consent when entered. Google sign-in verifies the Google account email. The Admin subscriber list records signups and whether offers were redeemed. Sending newsletters requires a mailing service. [Google Identity setup](https://developers.google.com/identity/gsi/web/guides/get-google-api-clientid)
+
+### Which checkout does the Admin see?
+
+| Store opened by the shopper | Inventory and customer activity |
+|---|---|
+| Double-click build, same browser profile | Store and Admin use the same local workspace. Stock and orders appear in that Admin. |
+| Unconnected GitHub Pages test build | In the editing browser, checkout for that merchant updates its local Admin inventory. With the Admin open and automatic sync connected, the revised catalog is published. Other shopper browsers keep their own test purchases, ratings and subscriber records. Their test purchases are retained across catalog updates. |
+| Hosted ASP.NET store or connected GitHub Pages storefront | Shoppers and the hosted Admin share PostgreSQL. Stock, ratings, orders and offer redemption are shared across devices for that store. For this setup, open the **hosted Admin → Publish & sync → Download connected GitHub storefront** and deploy the exported index.html. See the server deployment instructions below. |
+
 ## Publish the customer build for testing on GitHub Pages
 
-1. Use the **Natur-Wala-GitHub-Pages.zip** customer package, or open **github-pages** in this full package. Upload its extracted **index.html** to the root of your GitHub test repository. This is the complete customer app and includes its styles, scripts and sample catalog.
-2. In repository **Settings → Pages**, choose **Deploy from a branch**, select your branch (usually main) and **/(root)**, then **Save**. Share the Pages site address with testers.
-3. Keep the full source ZIP and the two management pages private. Publishing just the customer file keeps owner/admin screens, test logins, management API actions, historical orders and merchant records out of your public upload.
+1. Extract **Natur-Wala-GitHub-Pages.zip**. Upload **index.html**, **admin.html** and **store.html** together in the publishing folder of your public test repository. Keep the existing folder and filenames when upgrading so the Admin browser can reuse its drafts. The full source package contains these same three files in **github-pages/**.
+2. In the repository, open **Settings → Pages → Deploy from a branch**. Select the branch and folder containing the three files. After the initial deployment use **Visit site**. For a project repository the address looks like `https://ACCOUNT.github.io/REPOSITORY/`. For an account site it looks like `https://ACCOUNT.github.io/`.
+3. Open **admin.html** at that Pages address and sign in. The supplied sample Admin opens the existing trial workspace in this browser. The **Open store** link includes the signed-in store’s slug (for example, `index.html?store=store-two-2`). Share this complete link. The plain Pages address keeps opening the default storefront. Before first sync the editing browser can preview its own saved catalog. A new device needs a published version. The Owner portal is available in the full package only. Visitors can open the static Admin UI if they know its URL. Authority to publish shared changes comes from GitHub write permission.
+4. In **Publish & sync**, the repository and public store address appear automatically on a standard github.io project or account URL. Use GitHub **Settings → Developer settings → Personal access tokens → Fine-grained tokens** to create an expiring token scoped to this repository, with **Contents: Read and write**. Enter it in **GitHub publishing token** and choose **Connect and sync**. Enter it again after reloading or signing out of Admin. Keep it out of commits, screenshots and chats.
+5. Leave **Automatically sync after Save** enabled. Save a product or homepage section and wait for **Synced to GitHub**. The storefront fetches the shared catalog on open and checks about every eight seconds while visible. The interval excludes GitHub, media download and network delays. **Sync now** retries a pending publication. Phone shoppers use the same store URL and need no account.
+6. On another Admin browser with the same store, first select **Load published catalog into this Admin**. This replaces its local product and branding draft and imports the public shipping and payment settings. It preserves that browser’s private order and courier records. Changes from a competing publisher require a reload of the published catalog before a new sync.
+
+**Publishing details.** The writer uses the repository default branch. It writes a public catalog under `nw-store/<store-slug>.json` and then switches that store’s publication pointer to that exact commit. The first store keeps `nw-store/current.json`. Other stores have separate pointers in `nw-store/stores/<store-slug>/current.json`. The customer reads that commit directly. A partial upload leaves the previous publication active. Multiple approved stores can publish independently to the same repo and Pages directory. On upgrade replace the three HTML files in place and retain the existing nw-store folder. Keep the default branch writable for this test. For a custom domain, use the connected ASP.NET storefront described below or open the app at its standard github.io address if available. The GitHub publisher expects the standard Pages address. The static demo keeps test checkout and inventory reservations in each shopper’s browser. Use the server edition for shared orders, enforceable Owner decisions and live courier processing.
 
 The included customer test store shows a 10% Wildflower Honey offer. At PKR 850 list price, one jar is PKR 765 plus PKR 200 shipping. Successful checkout shows a **Thank you for your order!** screen and the saved **order number**. Refresh keeps that confirmation in the same tab. **Continue shopping** returns to the store with an empty bag.
 
@@ -22,21 +56,27 @@ The included customer test store shows a 10% Wildflower Honey offer. At PKR 850 
 
 Open admin.html, sign in and choose **Promotions → Product to promote**. Choose a preset or enter a custom percentage/fixed PKR discount and label. Preview the sale price and choose **Save promotion**. Choose **None** and save to remove it. The original product form supports promotions as well. Discounts appear on the product, in the bag and on the saved order item.
 
-For the three local pages, the storefront uses your saved changes on reload. To give GitHub testers your own catalog, use **Download GitHub storefront** in the admin dashboard, then replace the repository's index.html with the downloaded file. The export includes customer-facing branding, enabled payment instructions, shipping rules and current product offers. Browser-only test orders are stored per tester’s browser. Use sample customer and payment details for this mode.
+Local file pages share the current browser’s working data. In GitHub Pages Admin, Save publishes catalog changes after connecting GitHub. **Download GitHub storefront** remains available for a single-file catalog export.
 
 ### Product photos and detail pages
 
 1. In **Admin → Product Addition**, click a product to edit it. Paste a public HTTPS image address into **Product image URL**, or use **Upload cover photo**. Wait for the preview and save the product. If a website blocks image embedding or the link opens a web page, upload the picture instead.
 2. Open **Admin → Product Details**, select the product and enter its full description. You can replace the cover here and add up to **eight additional photos**. Select several PNG, JPEG or WebP files at once, or add gallery URLs individually. Use the arrow buttons to reorder photos, then choose **Save product details**. Individual uploads can be up to 16 MB. The browser resizes larger originals before saving.
-3. On the store, click the product name or picture. The product has its own link, photo gallery, full description, price, stock and bag button. Reload the local storefront after editing. For a static GitHub store, export and publish the updated **index.html** after your changes. Uploaded photos travel with this export. Linked photos need their original image host to remain accessible.
+3. On the store, click the product name or picture. The product has its own link, photo gallery, full description, price, stock and bag button. Reload the local storefront after editing. For the GitHub Pages edition, check for **Synced to GitHub** after saving. Uploaded photos travel with this export. Linked photos need their original image host to remain accessible.
+
+### Product specifications, bullets and numbered steps
+
+In **Admin → Product Details**, choose the product. Type one feature or instruction on each line, select the lines and click **Bullet list** or **Numbered list**. Press Enter at the end of an item to continue and again on an empty item to finish. The same list button removes the markers from selected items.
+
+Use **Insert table** to enter column headings and values in a grid. For a phone, use **Feature** and **Specification**, then enter rows such as **RAM / 8 GB** and **Storage / 128 GB**. Add or remove rows and columns as needed. **Apply table** places the table into the description draft. **Edit table 1**, **Edit table 2**, etc. reopen existing tables. **Preview description** shows the customer formatting. Choose **Save product details** to persist the changes, then use the existing publishing flow for GitHub Pages. Wide tables scroll within the description on a phone.
 
 ### Headings, home-page video and footer links
 
 In **Product Details**, place the cursor on a description line and choose **Heading** or **Subheading**. You can type over the selected text, preview the description and save. Existing plain-text descriptions keep their line breaks.
 
-In **Admin → Store**, upload an MP4 or WebM up to 8 MiB or paste a direct HTTPS video URL. A video-hosting page URL will not play as a video file. **Save branding** publishes the clip in the home-page banner. The video starts muted where the browser permits, has playback controls and uses the banner image as its poster and fallback. Removing the clip restores the image. A hosted video URL keeps the size of large storefront exports down.
+In **Hero banner**, edit the small heading, both title lines, description and shop button. An empty field hides its text. Upload a cover and additional slides or add an MP4/WebM up to 8 MiB or a direct HTTPS video URL. The full-width background fills the hero and crops to fit on phones. Clips request muted inline autoplay. The shopper has no playback toolbar. The browser controls autoplay permission. Set the slide interval from 2 to 30 seconds. A single video loops; multiple items rotate automatically, including when the pointer is over the banner. The banner image is also the video poster.
 
-In the same Store form, use **Add social link** for each platform. Enter its display name and HTTPS profile link and save. The links appear in the customer footer. After local edits, export a fresh **index.html** to update GitHub Pages.
+**Category showcase** controls the section title and visibility. Its tiles use current product categories and link to matching catalog items. **Featured products** lets the merchant choose products or use the newest four. **Catalog section** controls the catalog headings. Use **Store story** for an optional editorial section and **Footer** for the footer message and linked social icons. Click **Save section** in each tab. **Store** retains the name, browser title and logo. **Languages** includes translation fields for the new section copy.
 
 Below the product details, **You may also like** links to up to four other in-stock items in the same store. Suggestions use product category, similar names, recently viewed categories in the current browser tab and the shopping bag. Other available products fill unused spots. Browsing history stays in the tab.
 
@@ -161,14 +201,25 @@ See `tests/README.md` for test commands and the verification scope for this rele
 
 Use the **hosted Admin** to make shared changes. **Publish & sync** shows its public store URL. Open that same URL on both devices. The store checks its catalog revision every eight seconds while visible and when returning to the page. Changes to products, stock, categories, slides, translations or themes refresh the open store. A new deployment of the application itself may require a page reload.
 
-For a GitHub Pages customer site, go to **Publish & sync**, enter the publicly reachable HTTPS server origin and approved store slug, then download and publish the **connected** index.html. Configure Pages__Origin on the API as described above. Future catalog edits in that hosted Admin reach both devices without re-exporting. On a hosted HTTPS Admin the dashboard’s GitHub download also generates a connected storefront. Use **Download offline catalog snapshot** in Publish & sync for a static copy. A standalone file Admin and a static snapshot are browser-local demos. For a static site with no API, re-export and republish index.html after editing. The open static storefront checks the published revision on focus and every 30 seconds, and waits until checkout is closed before updating. Offline demo edits are not imported into the hosted store.
+For a Pages test store without a server, use the GitHub publishing steps above. For a Pages customer site connected to PostgreSQL, open the **server Admin → Publish & sync**, enter the deployed ASP.NET origin and approved store slug, download the connected index.html and publish it. Configure Pages__Origin on the API. Make subsequent edits in that server Admin. A github.com repository URL leads to repository files; it cannot serve the ASP.NET endpoints.
 
 To test the server on a trusted Wi-Fi network, set WEB_BIND_ADDRESS=0.0.0.0 in .env, recreate the web service, then open http://YOUR-COMPUTER-LAN-IP:5173/admin on desktop and http://YOUR-COMPUTER-LAN-IP:5173/store/STORE-SLUG on the phone. Use the configured WEB_PORT and allow it through your local firewall for the trusted network. On a phone, localhost refers to the phone. Use HTTPS for internet hosting.
+
+## Design a store without code
+
+Open **Admin → Store designer**. Choose a design area, change its controls and check the live **Desktop** and **Mobile** previews. **Save design** applies the draft to this store. GitHub Pages uses the existing **Publish & sync** connection. On a hosted server the layout is stored with the merchant’s branding in PostgreSQL.
+
+- **Header & logo** changes position, size, shape and the placement of the store name. Upload the logo itself under **Store**.
+- **Hero banner** can fill the cover or put the photo and text side by side. **Category showcase**, **Featured products** and **Catalog & filters** each support grid, vertical list and swipeable horizontal layouts.
+- Choose filter buttons or a dropdown. Position the filters above the catalog, on its left or on its right. Sidebars move above products on small screens.
+- **Footer** independently aligns the store name, message, category links and social icons. Edit footer content in the **Footer** tab.
+- Choose **Homepage section order** and use the arrows to move whole sections. **Add custom section** adds a heading, text and optional HTTPS photo with its own alignment and layout. Sections can be hidden or removed from the draft. Use **Languages** to translate their headings and text.
+- **Preview default layout** restores the theme’s layout choices in the draft and retains custom content. Save to apply it. Existing stores use their original layout until the merchant saves a change.
 
 ## Merchandising and languages
 
 - Enter comma-separated categories in Product Addition, for example Honey, Gifts, Pantry. Each category is selectable above the catalog and linked in the footer. Price sorting uses the discounted price. Newest and oldest use the product creation sequence, including for products created before this release.
-- In Store, set the cover banner and use **Upload banner slides** for up to eight more images. Images rotate every five seconds, with previous, next and pause controls. A configured promotional video plays first, then advances at the end. Reduced-motion preferences disable automatic rotation.
+- In **Hero banner**, set the cover, video, up to eight additional slides and their interval. Save to publish using your selected deployment mode.
 - Footer social links display service icons, their accessible names and a tooltip with the destination URL. Custom platforms use a link icon.
 - Admin **Languages** offers the national, regional and de facto official language/script entries in Unicode CLDR 49 territory data, and accepts additional valid BCP 47 language tags. Seven storefront interface translations are supplied: English, Urdu, Hindi, Arabic, French, Spanish and Chinese. Enable languages individually or choose **Enable all listed languages**. Enter translations in Admin or download and import a language JSON file. Set the default and save. Product names, summaries, details, promotions and category names can have merchant-provided translations. Customers choose among enabled languages in the header. Text without a translation falls back to its original wording. Admin and Owner tools are in English.
 - Official-language data is derived from Unicode CLDR territoryInfo.json. Selected social logos are from Simple Icons. See licenses/.

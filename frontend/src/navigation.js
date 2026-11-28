@@ -3,6 +3,9 @@ export const logo = window.NW_LOCAL?.logo || "/natur-wala.png";
 export function link(path) {
   if (!local) return path;
   if (path.startsWith("/admin")) return "admin.html#" + path;
+  const shop = path.match(/^\/store\/([a-z0-9-]+)(?:\/|$)/)?.[1];
+  if (shop && window.NW_LOCAL.multiStore)
+    return "index.html?store=" + shop + "#" + path;
   return (window.NW_LOCAL.published ? "index.html" : "store.html") + "#" + path;
 }
 export function currentPath() {

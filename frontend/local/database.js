@@ -5,6 +5,10 @@ export function createWorkspace(databaseName, seed) {
       connection = new Promise((resolve, reject) => {
         const req = indexedDB.open(databaseName, 1);
         req.onupgradeneeded = () => {
+          if (!seed) {
+            req.transaction.abort();
+            return;
+          }
           req.result.createObjectStore("workspace").add(seed(), "data");
         };
         req.onsuccess = () => resolve(req.result);

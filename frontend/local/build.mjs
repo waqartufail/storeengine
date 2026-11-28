@@ -13,7 +13,7 @@ async function page(entry, role, extra = "", template = "") {
     outfile: "page.js",
     write: false,
     minify: true,
-    loader: { ".png": "dataurl" },
+    loader: { ".png": "dataurl", ".webp": "dataurl" },
     define: {
       "process.env.NODE_ENV": '"production"',
       __NW_ROLE__: JSON.stringify(role),
@@ -66,4 +66,11 @@ for (const role of ["store", "admin", "owner"]) {
     role === "admin" ? blank : "",
   );
   await writeFile(new URL(role + ".html", root), html);
+  if (role === "admin")
+    await writeFile(new URL("github-pages/admin.html", root), html);
 }
+
+await writeFile(
+  new URL("github-pages/store.html", root),
+  '<!doctype html><html lang="en"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Store</title><a href="index.html">Open store</a><script>location.replace("index.html"+location.search+location.hash)</script></html>',
+);

@@ -280,6 +280,7 @@ app.MapGet(
 PostExCredentials.Map(admin);
 Catalog.Map(admin, store);
 Sales.Map(admin, store);
+CustomerOffers.Map(admin, store);
 app.Run();
 
 static class Access

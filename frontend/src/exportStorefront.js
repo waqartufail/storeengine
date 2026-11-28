@@ -10,10 +10,12 @@ export function snapshot(view, revision) {
       "banner",
       "promoVideo",
       "bannerSlides",
+      "homepage",
       "languages",
       "socialLinks",
       "theme",
     ]),
+    newsletter: view.newsletter,
     shipping: pick(view.shipping, [
       "baseCharge",
       "includedWeight",
@@ -37,6 +39,7 @@ export function snapshot(view, revision) {
         "shippingCharge",
         "imageUrl",
         "details",
+        "disclosures",
         "gallery",
         "promoKind",
         "promoValue",
@@ -57,13 +60,17 @@ export function fillTemplate(template, data) {
     template.slice(end)
   );
 }
-export async function exportStorefront(view, connection = null) {
+export async function storefrontTemplate() {
   let template = window.NW_LOCAL?.template;
   if (!template) {
     const response = await fetch("/store-template.html");
     if (!response.ok) throw Error("Storefront template could not be loaded.");
     template = await response.text();
   }
+  return template;
+}
+export async function exportStorefront(view, connection = null) {
+  const template=await storefrontTemplate();
   const output = connection
     ? fillTemplate(template, {
         revision: "live",
